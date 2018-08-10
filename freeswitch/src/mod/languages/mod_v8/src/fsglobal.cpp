@@ -63,7 +63,7 @@ public:
 
 size_t FSGlobal::HashCallback(void *ptr, size_t size, size_t nmemb, void *data)
 {
-	size_t realsize = size * nmemb;
+	register size_t realsize = size * nmemb;
 	char *line, lineb[2048], *nextline = NULL, *val = NULL, *p = NULL;
 	CURLCallbackData *config_data = (CURLCallbackData *)data;
 
@@ -112,7 +112,7 @@ size_t FSGlobal::HashCallback(void *ptr, size_t size, size_t nmemb, void *data)
 
 size_t FSGlobal::FileCallback(void *ptr, size_t size, size_t nmemb, void *data)
 {
-	unsigned int realsize = (unsigned int) (size * nmemb);
+	register unsigned int realsize = (unsigned int) (size * nmemb);
 	CURLCallbackData *config_data = (CURLCallbackData *)data;
 
 	if ((write(config_data->fileHandle, ptr, realsize) != (int) realsize)) {
@@ -124,7 +124,7 @@ size_t FSGlobal::FileCallback(void *ptr, size_t size, size_t nmemb, void *data)
 
 size_t FSGlobal::FetchUrlCallback(void *ptr, size_t size, size_t nmemb, void *data)
 {
-	unsigned int realsize = (unsigned int) (size * nmemb);
+	register unsigned int realsize = (unsigned int) (size * nmemb);
 	CURLCallbackData *config_data = (CURLCallbackData *)data;
 
 	/* Too much data. Do not increase buffer, but abort fetch instead. */
@@ -477,27 +477,16 @@ JS_GLOBAL_FUNCTION_IMPL_STATIC(Include)
 				string js_file = JSMain::LoadFileToString(script_name);
 
 				if (js_file.length() > 0) {
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-					MaybeLocal<v8::Script> script;
-					LoadScript(&script, info.GetIsolate(), js_file.c_str(), script_name);
-					
-					if (script.IsEmpty()) {
-						info.GetReturnValue().Set(false);
-					} else {
-						info.GetReturnValue().Set(script.ToLocalChecked()->Run());
-					}
-#else
 					Handle<String> source = String::NewFromUtf8(info.GetIsolate(), js_file.c_str());
 					Handle<Script> script = Script::Compile(source, info[i]);
 					info.GetReturnValue().Set(script->Run());
-#endif
 					switch_safe_free(path);
 					return;
 				}
 			}
 			switch_safe_free(path);
 		}
-
+	
 		info.GetIsolate()->ThrowException(String::NewFromUtf8(info.GetIsolate(), "Failed to include javascript file"));
 	}
 }
@@ -593,7 +582,7 @@ JS_GLOBAL_FUNCTION_IMPL_STATIC(Email)
 	JS_CHECK_SCRIPT_STATE();
 	HandleScope handle_scope(info.GetIsolate());
 	string to, from, headers, body, file, convert_cmd, convert_ext;
-
+	
 	if (info.Length() > 0) {
 		String::Utf8Value str(info[0]);
 		to = js_safe_str(*str);
@@ -653,7 +642,7 @@ JS_GLOBAL_FUNCTION_IMPL_STATIC(Bridge)
 	if (info.Length() > 1) {
 		if (info[0]->IsObject()) {
 			obj_a = Handle<Object>::Cast(info[0]);
-
+			
 			if (!(jss_a = JSBase::GetInstance<FSSession>(obj_a))) {
 				info.GetIsolate()->ThrowException(String::NewFromUtf8(info.GetIsolate(), "Cannot find session A"));
 				return;
@@ -693,13 +682,12 @@ JS_GLOBAL_FUNCTION_IMPL_STATIC(Bridge)
 			cb_state.session_obj_a.Reset(info.GetIsolate(), obj_a);
 			cb_state.session_obj_b.Reset(info.GetIsolate(), obj_b);
 			cb_state.session_state = jss_a;
-			cb_state.context.Reset(info.GetIsolate(), info.GetIsolate()->GetCurrentContext());
 			dtmf_func = FSSession::CollectInputCallback;
 			bp = &cb_state;
 		}
 	}
 
-	JS_EXECUTE_LONG_RUNNING_C_CALL_WITH_UNLOCKER(switch_ivr_multi_threaded_bridge(jss_a->GetSession(), jss_b->GetSession(), dtmf_func, bp, bp));
+	switch_ivr_multi_threaded_bridge(jss_a->GetSession(), jss_b->GetSession(), dtmf_func, bp, bp);
 
 	info.GetReturnValue().Set(true);
 }

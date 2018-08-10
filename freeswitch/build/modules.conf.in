@@ -50,7 +50,6 @@ applications/mod_spandsp
 #applications/mod_stress
 #applications/mod_translate
 applications/mod_valet_parking
-#applications/mod_video_filter
 #applications/mod_vmd
 applications/mod_voicemail
 #applications/mod_voicemail_ivr
@@ -93,6 +92,7 @@ endpoints/mod_loopback
 endpoints/mod_rtc
 #endpoints/mod_rtmp
 endpoints/mod_skinny
+#endpoints/mod_skypopen
 endpoints/mod_sofia
 endpoints/mod_verto
 #event_handlers/mod_amqp
@@ -103,7 +103,6 @@ event_handlers/mod_cdr_sqlite
 #event_handlers/mod_erlang_event
 #event_handlers/mod_event_multicast
 event_handlers/mod_event_socket
-#event_handlers/mod_fail2ban
 #event_handlers/mod_format_cdr
 #event_handlers/mod_json_cdr
 #event_handlers/mod_radius_cdr
@@ -136,7 +135,6 @@ loggers/mod_console
 #loggers/mod_graylog2
 loggers/mod_logfile
 loggers/mod_syslog
-#loggers/mod_raven
 #say/mod_say_de
 say/mod_say_en
 #say/mod_say_es

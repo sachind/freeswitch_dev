@@ -29,7 +29,7 @@ static switch_status_t lua_hanguphook(switch_core_session_t *session_hungup);
 
 void Session::destroy(const char *err)
 {
-
+	
 	if (!allocated) {
 		return;
 	}
@@ -46,8 +46,6 @@ void Session::destroy(const char *err)
 	switch_safe_free(hangup_func_arg);
 	switch_safe_free(cb_function);
 	switch_safe_free(cb_arg);
-
-	unsetInputCallback();
 
 	CoreSession::destroy();
 
@@ -157,7 +155,7 @@ void Session::do_hangup_hook()
 		docall(L, arg_count, 1, 1, 0);
 
 		const char *err = lua_tostring(L, -1);
-
+		
 		switch_channel_set_variable(channel, "lua_hangup_hook_return_val", err);
 
 		if (!zstr(err)) {
@@ -200,7 +198,7 @@ static switch_status_t lua_hanguphook(switch_core_session_t *session_hungup)
 				coresession = (Session *) vs;
 			}
 		}
-
+		
 		if (!(coresession && coresession->hook_state)) {
 			return SWITCH_STATUS_FALSE;
 		}
@@ -242,7 +240,6 @@ void Session::unsetInputCallback(void)
 	switch_safe_free(cb_arg);
 	args.input_callback = NULL;
 	ap = NULL;
-	switch_channel_clear_flag_recursive(channel, CF_QUEUE_TEXT_EVENTS);
 }
 
 void Session::setInputCallback(char *cbfunc, char *funcargs)
@@ -265,9 +262,6 @@ void Session::setInputCallback(char *cbfunc, char *funcargs)
 
 	args.input_callback = dtmf_callback;
 	ap = &args;
-
-	switch_channel_set_flag_recursive(channel, CF_QUEUE_TEXT_EVENTS);
-
 }
 
 switch_status_t Session::run_dtmf_callback(void *input, switch_input_type_t itype)
@@ -354,51 +348,38 @@ switch_status_t Session::run_dtmf_callback(void *input, switch_input_type_t ityp
 Dbh::Dbh(char *dsn, char *user, char *pass)
 {
 	dbh = NULL;
-	err = NULL;
 	char *tmp = NULL;
-
+	
 	if (!zstr(user) || !zstr(pass)) {
-		tmp = switch_mprintf("%s%s%s%s%s", dsn,
+		tmp = switch_mprintf("%s%s%s%s%s", dsn, 
 							 zstr(user) ? "" : ":",
 							 zstr(user) ? "" : user,
 							 zstr(pass) ? "" : ":",
 							 zstr(pass) ? "" : pass
 							 );
-
+		
 		dsn = tmp;
 	}
 
 	if (!zstr(dsn) && switch_cache_db_get_db_handle_dsn(&dbh, dsn) == SWITCH_STATUS_SUCCESS) {
-		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG10, "DBH handle %p Connected.\n", (void *) dbh);
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "DBH handle %p Connected.\n", (void *) dbh);
 	} else {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Connection failed.  DBH NOT Connected.\n");
 	}
 
 	switch_safe_free(tmp);
-
+	
 }
 
 Dbh::~Dbh()
 {
 	if (dbh) release();
-
-	clear_error();
-}
-
-void Dbh::clear_error()
-{
-	switch_safe_free(err);
-}
-
-char *Dbh::last_error()
-{
-	return err;
 }
 
 bool Dbh::release()
 {
   if (dbh) {
-	  switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG10, "DBH handle %p released.\n", (void *) dbh);
+	  switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "DBH handle %p released.\n", (void *) dbh);
 	  switch_cache_db_release_db_handle(&dbh);
 	  return true;
   }
@@ -449,18 +430,16 @@ int Dbh::query_callback(void *pArg, int argc, char **argv, char **cargv)
 
   ret = lua_tonumber(lua_fun->L, -1);
   lua_pop(lua_fun->L, 1);
-
+  
   if (ret != 0) {
 	  return 1;
   }
-
+  
   return 0; /* 0 to continue with next row */
 }
 
 bool Dbh::query(char *sql, SWIGLUA_FN lua_fun)
 {
-  clear_error();
-
   if (zstr(sql)) {
     switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Missing SQL query.\n");
     return false;
@@ -468,17 +447,17 @@ bool Dbh::query(char *sql, SWIGLUA_FN lua_fun)
 
   if (dbh) {
     if (lua_fun.L) {
-      if (switch_cache_db_execute_sql_callback(dbh, sql, query_callback, &lua_fun, &err) == SWITCH_STATUS_SUCCESS) {
+      if (switch_cache_db_execute_sql_callback(dbh, sql, query_callback, &lua_fun, NULL) == SWITCH_STATUS_SUCCESS) {
         return true;
       }
     } else { /* if no lua_fun arg is passed from Lua, an empty initialized struct will be sent - see freeswitch.i */
-      if (switch_cache_db_execute_sql(dbh, sql, &err) == SWITCH_STATUS_SUCCESS) {
+      if (switch_cache_db_execute_sql(dbh, sql, NULL) == SWITCH_STATUS_SUCCESS) {
         return true;
       }
     }
-  } else {
-    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "DBH NOT Connected.\n");
   }
+
+  switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "DBH NOT Connected.\n");
   return false;
 }
 

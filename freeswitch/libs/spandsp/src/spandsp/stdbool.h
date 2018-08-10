@@ -39,16 +39,15 @@
 
 #if !defined(__cplusplus)
 
-#ifndef _MSC_VER 
-typedef int     _Bool;
-#endif
-typedef int     bool;
+#define _Bool   int
+#define bool    int
 #define false   0
 #define true    (!false)
 
 #else
 
-typedef bool    _Bool;
+#define _Bool   bool
+#define bool    bool
 #define false   false
 #define true    true
 

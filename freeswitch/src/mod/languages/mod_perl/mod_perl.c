@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  *
  *
@@ -143,11 +143,7 @@ static int perl_parse_and_execute(PerlInterpreter * my_perl, char *input_code, c
 	return error;
 }
 
-#ifdef DEBUG_PERL
-#define HACK_CLEAN_CODE "eval{foreach my $kl(keys %main::) {eval{print qq'DEBUG: ' . $kl . '/' . $$kl . '/' . $$$kl . qq'\n';undef($$kl);} if (defined($$kl) && ($kl =~ /^\\w+[\\w\\d_]+$/))}}"
-#else
 #define HACK_CLEAN_CODE "eval{foreach my $kl(keys %main::) {eval{undef($$kl);} if (defined($$kl) && ($kl =~ /^\\w+[\\w\\d_]+$/))}}"
-#endif
 
 static void destroy_perl(PerlInterpreter ** to_destroy)
 {

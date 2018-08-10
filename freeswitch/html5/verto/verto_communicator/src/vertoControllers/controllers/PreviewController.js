@@ -24,16 +24,9 @@
             }
           };
 
-          var newDevice = verto.data.videoDevices.find(function(device) {
-            return device.id == storage.data.selectedVideo;
-          });
-
-          storage.data.selectedVideo = newDevice.id;
-          storage.data.selectedVideoName = newDevice.label;
-
-          if (newDevice.id !== 'none') {
+          if (storage.data.selectedVideo !== 'none') {
             constraints.video = {
-              optional: [{ sourceId: newDevice.id }]
+              optional: [{ sourceId: storage.data.selectedVideo }]
             };
           }
 

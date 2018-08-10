@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Eliot Gable <egable@gmail.com>
  * Seven Du <dujinfang@gmail.com>
@@ -39,12 +39,7 @@
 
 #ifdef SWITCH_HAVE_PGSQL
 #include <libpq-fe.h>
-
-#ifndef _WIN32
 #include <poll.h>
-#else
-#include <winsock2.h>
-#endif
 
 
 struct switch_pgsql_handle {
@@ -128,7 +123,7 @@ static int db_is_up(switch_pgsql_handle_t *handle)
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "No DB Connection\n");
 		goto done;
 	}
-
+  
 	/* Try a non-blocking read on the connection to gobble up any EOF from a closed connection and mark the connection BAD if it is closed. */
 	PQconsumeInput(handle->con);
 
@@ -258,7 +253,6 @@ SWITCH_DECLARE(switch_pgsql_status_t) switch_pgsql_send_query(switch_pgsql_handl
 	if (!PQsendQuery(handle->con, sql)) {
 		err_str = switch_pgsql_handle_get_error(handle);
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Failed to send query (%s) to database: %s\n", sql, err_str);
-		switch_safe_free(err_str);
 		switch_pgsql_finish_results(handle);
 		goto error;
 	}
@@ -298,13 +292,9 @@ SWITCH_DECLARE(switch_pgsql_status_t) switch_pgsql_next_result_timed(switch_pgsq
 	switch_time_t ctime;
 	unsigned int usec = msec * 1000;
 	char *err_str;
-#ifndef _WIN32
-	struct pollfd fds[2] = { { 0 } };
-#else
-	fd_set rs, es;
-#endif
+	struct pollfd fds[2] = { {0} };
 	int poll_res = 0;
-
+	
 	if(!handle) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "**BUG** Null handle passed to switch_pgsql_next_result.\n");
 		return SWITCH_PGSQL_FAIL;
@@ -319,8 +309,6 @@ SWITCH_DECLARE(switch_pgsql_status_t) switch_pgsql_next_result_timed(switch_pgsq
 			start = switch_micro_time_now();
 			while((ctime = switch_micro_time_now()) - start <= usec) {
 				int wait_time = (usec - (ctime - start)) / 1000;
-				/* Wait for the PostgreSQL socket to be ready for data reads. */
-#ifndef _WIN32
 				fds[0].fd = handle->sock;
 				fds[0].events |= POLLIN;
 				fds[0].events |= POLLERR;
@@ -330,17 +318,8 @@ SWITCH_DECLARE(switch_pgsql_status_t) switch_pgsql_next_result_timed(switch_pgsq
 				fds[0].events |= POLLRDNORM;
 				fds[0].events |= POLLRDBAND;
 
-				poll_res = poll(&fds[0], 1, wait_time);
-#else
-				struct timeval wait = { wait_time * 1000, 0};	
-				FD_ZERO(&rs);
-				FD_SET(handle->sock, &rs);
-				FD_ZERO(&es);
-				FD_SET(handle->sock, &es);
-				poll_res = select(0, &rs, 0, &es, &wait);
-#endif
-				if (poll_res > 0 ) {
-#ifndef _WIN32
+				/* Wait for the PostgreSQL socket to be ready for data reads. */
+				if ((poll_res = poll(&fds[0], 1, wait_time)) > 0 ) {
 					if (fds[0].revents & POLLHUP || fds[0].revents & POLLNVAL) {
 						switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "PGSQL socket closed or invalid while waiting for result for query (%s)\n", handle->sql);
 						goto error;
@@ -348,9 +327,6 @@ SWITCH_DECLARE(switch_pgsql_status_t) switch_pgsql_next_result_timed(switch_pgsq
 						switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Poll error trying to read PGSQL socket for query (%s)\n", handle->sql);
 						goto error;
 					} else if (fds[0].revents & POLLIN || fds[0].revents & POLLPRI || fds[0].revents & POLLRDNORM || fds[0].revents & POLLRDBAND) {
-#else
-					if (FD_ISSET(handle->sock, &rs)) {
-#endif						
 						/* Then try to consume any input waiting. */
 						if (PQconsumeInput(handle->con)) {
 							if (PQstatus(handle->con) == CONNECTION_BAD) {
@@ -404,13 +380,13 @@ SWITCH_DECLARE(switch_pgsql_status_t) switch_pgsql_next_result_timed(switch_pgsq
 	}
 	memset(res, 0, sizeof(switch_pgsql_result_t));
 
-
+	
 	res->result = PQgetResult(handle->con);
 	if (res->result) {
 		*result_out = res;
 		res->status = PQresultStatus(res->result);
 		switch(res->status) {
-#if (POSTGRESQL_MAJOR_VERSION == 9 && POSTGRESQL_MINOR_VERSION >= 2) || POSTGRESQL_MAJOR_VERSION > 9
+#if POSTGRESQL_MAJOR_VERSION >= 9 && POSTGRESQL_MINOR_VERSION >= 2
 		case PGRES_SINGLE_TUPLE:
 			/* Added in PostgreSQL 9.2 */
 #endif
@@ -421,7 +397,7 @@ SWITCH_DECLARE(switch_pgsql_status_t) switch_pgsql_next_result_timed(switch_pgsq
 				res->cols = PQnfields(res->result);
 			}
 			break;
-#if (POSTGRESQL_MAJOR_VERSION == 9 && POSTGRESQL_MINOR_VERSION >= 1) || POSTGRESQL_MAJOR_VERSION > 9
+#if POSTGRESQL_MAJOR_VERSION >= 9 && POSTGRESQL_MINOR_VERSION >= 1
 		case PGRES_COPY_BOTH:
 			/* Added in PostgreSQL 9.1 */
 #endif
@@ -654,7 +630,7 @@ SWITCH_DECLARE(switch_pgsql_status_t) switch_pgsql_handle_exec_base_detailed(con
 			free(er);
 		}
 	}
-
+	
 	if (err_str) {
 		if (!switch_stristr("already exists", err_str) && !switch_stristr("duplicate key name", err_str)) {
 			switch_log_printf(SWITCH_CHANNEL_ID_LOG, file, func, line, NULL, SWITCH_LOG_ERROR, "ERR: [%s]\n[%s]\n", sql, switch_str_nil(err_str));
@@ -700,7 +676,7 @@ SWITCH_DECLARE(switch_pgsql_status_t) switch_pgsql_handle_callback_exec_detailed
 	if (switch_pgsql_handle_exec_base(handle, sql, err) == SWITCH_PGSQL_FAIL) {
 		goto error;
 	}
-
+	
 	if (switch_pgsql_next_result(handle, &result) == SWITCH_PGSQL_FAIL) {
 		err_cnt++;
 		err_str = switch_pgsql_handle_get_error(handle);
@@ -735,7 +711,7 @@ SWITCH_DECLARE(switch_pgsql_status_t) switch_pgsql_handle_callback_exec_detailed
 					names[col] = malloc(len+1);
 					names[col][len] = '\0';
 					strncpy(names[col], tmp, len);
-
+					
 					len = PQgetlength(result->result, row, col);
 					vals[col] = malloc(len+1);
 					vals[col][len] = '\0';
@@ -875,7 +851,7 @@ SWITCH_DECLARE(switch_pgsql_status_t) switch_pgsql_flush(switch_pgsql_handle_t *
 		PQclear(tmp);
 		x++;
 	}
-
+	
 	if (x) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG10, "Flushing %d results\n", x);
 	}

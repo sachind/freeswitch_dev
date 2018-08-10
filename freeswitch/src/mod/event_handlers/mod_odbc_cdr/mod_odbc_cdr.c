@@ -24,7 +24,6 @@
  * Contributor(s):
  *
  * Emmanuel Schmidbauer <eschmidbauer@gmail.com>
- * ding ding <cdevelop@qq.com>
  *
  * mod_odbc_cdr.c
  *
@@ -65,12 +64,6 @@ static struct {
 	switch_mutex_t *mutex;
 	switch_memory_pool_t *pool;
 } globals;
-
-typedef struct {
-	char *chan_var_name;
-	char *default_value;
-	switch_bool_t quote;
-} cdr_field_t;
 
 struct table_profile {
 	char *name;
@@ -137,30 +130,12 @@ static table_profile_t *load_table(const char *table_name)
 		for (x_field = switch_xml_child(x_table, "field"); x_field; x_field = x_field->next) {
 			char *var = (char *) switch_xml_attr_soft(x_field, "name");
 			char *val = (char *) switch_xml_attr_soft(x_field, "chan-var-name");
-			cdr_field_t *field = NULL;
-			const char *attr;
-
+			char *value = NULL;
 			if (zstr(var) || zstr(val)) {
 				continue; // Ignore empty entries
 			}
-
-			field = switch_core_alloc(pool, sizeof(cdr_field_t));
-			field->chan_var_name = switch_core_strdup(pool, val);
-
-			/* Assume all fields should be quoted (treated as strings), unless specified otherwise */
-			if (switch_false(switch_xml_attr(x_field, "quote"))) {
-				field->quote = SWITCH_FALSE;
-			} else {
-				field->quote = SWITCH_TRUE;
-			}
-
-			if ((attr = switch_xml_attr(x_field, "default-value"))) {
-				field->default_value = switch_core_strdup(pool,attr);
-			} else {
-				field->default_value = NULL;
-			}
-
-			switch_core_hash_insert_locked(table->field_hash, var, field, table->mutex);
+			value = switch_core_strdup(pool, val);
+			switch_core_hash_insert_locked(table->field_hash, var, value, table->mutex);
 			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Field [%s] (%s) added to [%s]\n", var, val, table->name);
 		}
 
@@ -299,12 +274,12 @@ static switch_status_t odbc_cdr_reporting(switch_core_session_t *session)
 				const void *i_var;
 				void *i_val;
 				char *field_hash_key;
-				cdr_field_t *field_hash_val;
+				char *field_hash_val;
 				char *sql = NULL;
 				char *full_path = NULL;
 				switch_stream_handle_t stream_field = { 0 };
 				switch_stream_handle_t stream_value = { 0 };
-				switch_bool_t insert_fail = SWITCH_FALSE;
+				switch_bool_t insert_fail = SWITCH_FALSE;				
 
 				SWITCH_STANDARD_STREAM(stream_field);
 				SWITCH_STANDARD_STREAM(stream_value);
@@ -313,27 +288,16 @@ static switch_status_t odbc_cdr_reporting(switch_core_session_t *session)
 					const char *tmp;
 					switch_core_hash_this(i_hi, &i_var, NULL, &i_val);
 					field_hash_key = (char *) i_var;
-					field_hash_val = (cdr_field_t *) i_val;
-					tmp = switch_channel_get_variable(channel, field_hash_val->chan_var_name);
+					field_hash_val = (char *) i_val;
 
-					if (!tmp && field_hash_val->default_value) {
-						tmp = field_hash_val->default_value;
-					}
-
-					if (tmp) {
-						if (started == SWITCH_TRUE) {
-							stream_field.write_function(&stream_field, ", ");
-							stream_value.write_function(&stream_value, ", ");
-						}
-
-						stream_field.write_function(&stream_field, "%q", field_hash_key);
-
-						if (field_hash_val->quote) {
-							stream_value.write_function(&stream_value, "'%q'", tmp);
+					if ((tmp = switch_channel_get_variable(channel, field_hash_val))) {
+						if (started == SWITCH_FALSE) {
+							stream_field.write_function(&stream_field, "%s", field_hash_key);
+							stream_value.write_function(&stream_value, "'%s'", tmp);
 						} else {
-							stream_value.write_function(&stream_value, "%q", tmp);
+							stream_field.write_function(&stream_field, ", %s", field_hash_key);
+							stream_value.write_function(&stream_value, ", '%s'", tmp);
 						}
-
 						started = SWITCH_TRUE;
 					}
 
@@ -344,22 +308,22 @@ static switch_status_t odbc_cdr_reporting(switch_core_session_t *session)
 				if (globals.debug_sql == SWITCH_TRUE) {
 					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "sql %s\n", sql);
 				}
-				if (odbc_cdr_execute_sql_no_callback(sql) != SWITCH_STATUS_SUCCESS) {
+				if (odbc_cdr_execute_sql_no_callback(sql) == SWITCH_STATUS_FALSE) {
 					insert_fail = SWITCH_TRUE;
 					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Error executing query %s\n", sql);
 				}
 
 				if (globals.write_csv == ODBC_CDR_CSV_ALWAYS) {
 					if (insert_fail == SWITCH_TRUE) {
-						full_path = switch_mprintf("%s%s%s_%s.csv", globals.csv_fail_path, SWITCH_PATH_SEPARATOR, uuid, table_name);
+						full_path = switch_mprintf("%s%s%s.csv", globals.csv_fail_path, SWITCH_PATH_SEPARATOR, uuid);
 					} else {
-						full_path = switch_mprintf("%s%s%s_%s.csv", globals.csv_path, SWITCH_PATH_SEPARATOR, uuid, table_name);
+						full_path = switch_mprintf("%s%s%s.csv", globals.csv_path, SWITCH_PATH_SEPARATOR, uuid);
 					}
 					assert(full_path);
 					write_cdr(full_path, stream_value.data);
 					switch_safe_free(full_path);
 				} else if (globals.write_csv == ODBC_CDR_CSV_ON_FAIL && insert_fail == SWITCH_TRUE) {
-					full_path = switch_mprintf("%s%s%s_%s.csv", globals.csv_fail_path, SWITCH_PATH_SEPARATOR, uuid, table_name);
+					full_path = switch_mprintf("%s%s%s.csv", globals.csv_fail_path, SWITCH_PATH_SEPARATOR, uuid);
 					assert(full_path);
 					write_cdr(full_path, stream_value.data);
 					switch_safe_free(full_path);

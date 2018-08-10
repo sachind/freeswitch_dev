@@ -84,7 +84,7 @@ SWITCH_MODULE_DEFINITION(mod_fifo, mod_fifo_load, mod_fifo_shutdown, NULL);
  * who will be available to answer a single caller. In ringall this
  * maximum is the number who will be called, in enterprise the need defines
  * how many agents will be called. outbound_per_cycle_min will define
- * the minimum agents who will be called to answer a caller regardless of
+ * the minimum agents who will be called to answer a caller regardless of 
  * need, giving the enterprise strategy the ability to ring through more
  * than one agent for one caller.
 
@@ -1471,7 +1471,7 @@ static void *SWITCH_THREAD_FUNC outbound_ringall_thread_run(switch_thread_t *thr
 
 	switch_mutex_lock(node->update_mutex);
 	node->busy = 0;
-	node->ring_consumer_count++;
+	node->ring_consumer_count = 1;
 	switch_mutex_unlock(node->update_mutex);
 
 	SWITCH_STANDARD_STREAM(stream);
@@ -1734,9 +1734,7 @@ static void *SWITCH_THREAD_FUNC outbound_ringall_thread_run(switch_thread_t *thr
 
 	if (node) {
 		switch_mutex_lock(node->update_mutex);
-		if (--node->ring_consumer_count < 0) {
-			node->ring_consumer_count = 0;
-		}
+		node->ring_consumer_count = 0;
 		node->busy = 0;
 		switch_mutex_unlock(node->update_mutex);
 		switch_thread_rwlock_unlock(node->rwlock);
@@ -1913,7 +1911,7 @@ static void *SWITCH_THREAD_FUNC outbound_enterprise_thread_run(switch_thread_t *
 	switch_event_destroy(&ovars);
 	if (node) {
 		switch_mutex_lock(node->update_mutex);
-		if (--node->ring_consumer_count < 0) {
+		if (node->ring_consumer_count-- < 0) {
 			node->ring_consumer_count = 0;
 		}
 		node->busy = 0;
@@ -1999,24 +1997,23 @@ static int place_call_enterprise_callback(void *pArg, int argc, char **argv, cha
  * care of invoking the handler.
  *
  * Within the ringall call strategy outbound_per_cycle is used to define
- * how many agents exactly are assigned to the caller. With ringall if
+ * how many agents exactly are assigned to the caller. With ringall if 
  * multiple callers are calling in and one is answered, because the call
  * is assigned to all agents the call to the agents that is not answered
  * will be lose raced and the other agents will drop the call before the
- * next one will begin to ring. When oubound_per_cycle is used in the
+ * next one will begin to ring. When oubound_per_cycle is used in the 
  * enterprise strategy it acts as a maximum value for how many agents
- * are rung at once on any call, the caller is not assigned to any agent
+ * are rung at once on any call, the caller is not assigned to any agent 
  * until the call is answered. Enterprise only rings the number of phones
  * that are needed, so outbound_per_cycle as a max does not give you the
  * effect of ringall. outbound_per_cycle_min defines how many agents minimum
  * will be rung by an incoming caller through fifo, which can give a ringall
  * effect. outbound_per_cycle and outbound_per_cycle_min both default to 1.
- *
+ * 
  */
-static int find_consumers(fifo_node_t *node)
+static void find_consumers(fifo_node_t *node)
 {
 	char *sql;
-	int ret = 0;
 
 	sql = switch_mprintf("select uuid, fifo_name, originate_string, simo_count, use_count, timeout, lag, "
 						 "next_avail, expires, static, outbound_call_count, outbound_fail_count, hostname "
@@ -2030,7 +2027,6 @@ static int find_consumers(fifo_node_t *node)
 	case NODE_STRATEGY_ENTERPRISE:
 		{
 			int need = node_caller_count(node);
-			int count;
 
 			if (node->outbound_per_cycle && node->outbound_per_cycle < need) {
 				need = node->outbound_per_cycle;
@@ -2038,9 +2034,7 @@ static int find_consumers(fifo_node_t *node)
 				need = node->outbound_per_cycle_min;
 			}
 
-			count = need;
 			fifo_execute_sql_callback(globals.sql_mutex, sql, place_call_enterprise_callback, &need);
-			ret = count - need;
 		}
 		break;
 	case NODE_STRATEGY_RINGALL:
@@ -2062,7 +2056,6 @@ static int find_consumers(fifo_node_t *node)
 			fifo_execute_sql_callback(globals.sql_mutex, sql, place_call_ringall_callback, cbh);
 
 			if (cbh->rowcount) {
-				ret = cbh->rowcount;
 				switch_threadattr_create(&thd_attr, cbh->pool);
 				switch_threadattr_detach_set(thd_attr, 1);
 				switch_threadattr_stacksize_set(thd_attr, SWITCH_THREAD_STACKSIZE);
@@ -2077,7 +2070,6 @@ static int find_consumers(fifo_node_t *node)
 	}
 
 	switch_safe_free(sql);
-	return ret;
 }
 
 /*\brief Continuously attempt to deliver calls to outbound members
@@ -2102,7 +2094,7 @@ static void *SWITCH_THREAD_FUNC node_thread_run(switch_thread_t *thread, void *o
 	globals.node_thread_running = 1;
 
 	while (globals.node_thread_running == 1) {
-		int ppl_waiting, consumer_total, idle_consumers, need_sleep = 0;
+		int ppl_waiting, consumer_total, idle_consumers, found = 0;
 
 		switch_mutex_lock(globals.mutex);
 
@@ -2167,9 +2159,9 @@ static void *SWITCH_THREAD_FUNC node_thread_run(switch_thread_t *thread, void *o
 				}
 
 				if ((ppl_waiting - this_node->ring_consumer_count > 0) && (!consumer_total || !idle_consumers)) {
-					if (find_consumers(this_node)) {
-						need_sleep++;
-					}
+					found++;
+					find_consumers(this_node);
+					switch_yield(1000000);
 				}
 			}
 		}
@@ -2180,9 +2172,8 @@ static void *SWITCH_THREAD_FUNC node_thread_run(switch_thread_t *thread, void *o
 
 		switch_mutex_unlock(globals.mutex);
 
-		if (cur_priority == 1 || need_sleep) {
+		if (cur_priority == 1) {
 			switch_yield(1000000);
-			need_sleep = 0;
 		}
 	}
 
@@ -3575,37 +3566,36 @@ SWITCH_STANDARD_APP(fifo_function)
 
 				if (fifo_consumer_wrapup_time) {
 					wrapup_time_started = switch_micro_time_now();
+				}
 
-					if (!zstr(fifo_consumer_wrapup_key) && strcmp(buf, fifo_consumer_wrapup_key)) {
-						while (switch_channel_ready(channel)) {
-							char terminator = 0;
+				if (!zstr(fifo_consumer_wrapup_key) && strcmp(buf, fifo_consumer_wrapup_key)) {
+					while (switch_channel_ready(channel)) {
+						char terminator = 0;
 
-							if (fifo_consumer_wrapup_time) {
-								wrapup_time_elapsed = (switch_micro_time_now() - wrapup_time_started) / 1000;
-								if (wrapup_time_elapsed > fifo_consumer_wrapup_time) {
-									break;
-								} else {
-									wrapup_time_remaining = fifo_consumer_wrapup_time - wrapup_time_elapsed + 100;
-								}
-							}
-
-							switch_ivr_collect_digits_count(session, buf, sizeof(buf) - 1, 1, fifo_consumer_wrapup_key, &terminator, 0, 0,
-															(uint32_t) wrapup_time_remaining);
-							if ((terminator == *fifo_consumer_wrapup_key) || !(switch_channel_ready(channel))) {
-								break;
-							}
-						}
-					} else if ((zstr(fifo_consumer_wrapup_key) || !strcmp(buf, fifo_consumer_wrapup_key))) {
-						while (switch_channel_ready(channel)) {
+						if (fifo_consumer_wrapup_time) {
 							wrapup_time_elapsed = (switch_micro_time_now() - wrapup_time_started) / 1000;
 							if (wrapup_time_elapsed > fifo_consumer_wrapup_time) {
 								break;
+							} else {
+								wrapup_time_remaining = fifo_consumer_wrapup_time - wrapup_time_elapsed + 100;
 							}
-							switch_yield(500);
+						}
+
+						switch_ivr_collect_digits_count(session, buf, sizeof(buf) - 1, 1, fifo_consumer_wrapup_key, &terminator, 0, 0,
+														(uint32_t) wrapup_time_remaining);
+						if ((terminator == *fifo_consumer_wrapup_key) || !(switch_channel_ready(channel))) {
+							break;
 						}
 					}
+				} else if (fifo_consumer_wrapup_time && (zstr(fifo_consumer_wrapup_key) || !strcmp(buf, fifo_consumer_wrapup_key))) {
+					while (switch_channel_ready(channel)) {
+						wrapup_time_elapsed = (switch_micro_time_now() - wrapup_time_started) / 1000;
+						if (wrapup_time_elapsed > fifo_consumer_wrapup_time) {
+							break;
+						}
+						switch_yield(500);
+					}
 				}
-
 				switch_channel_set_variable(channel, "fifo_status", "WAITING");
 			}
 
@@ -4084,7 +4074,7 @@ static void list_node(fifo_node_t *node, switch_xml_t x_report, int *off, int ve
 	switch_xml_set_attr_d(x_fifo, "outbound_per_cycle", tmp);
 
 	switch_snprintf(tmp, sizeof(buffer), "%u", node->outbound_per_cycle_min);
-	switch_xml_set_attr_d(x_fifo, "outbound_per_cycle_min", tmp);
+	switch_xml_set_attr_d(x_fifo, "outbound_per_cycle_min", tmp); 
 
 	switch_snprintf(tmp, sizeof(buffer), "%u", node->ring_timeout);
 	switch_xml_set_attr_d(x_fifo, "ring_timeout", tmp);

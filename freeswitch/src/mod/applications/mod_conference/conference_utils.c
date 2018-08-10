@@ -118,8 +118,6 @@ void conference_utils_set_mflags(const char *flags, member_flag_t *f)
                 f[MFLAG_CAN_BE_SEEN] = 0;
 			} else if (!strcasecmp(argv[i], "deaf")) {
 				f[MFLAG_CAN_HEAR] = 0;
-			} else if (!strcasecmp(argv[i], "blind")) {
-				f[MFLAG_CAN_SEE] = 0;
 			} else if (!strcasecmp(argv[i], "mute-detect")) {
 				f[MFLAG_MUTE_DETECT] = 1;
 			} else if (!strcasecmp(argv[i], "dist-dtmf")) {
@@ -132,8 +130,6 @@ void conference_utils_set_mflags(const char *flags, member_flag_t *f)
 				f[MFLAG_ENDCONF] = 1;
 			} else if (!strcasecmp(argv[i], "mintwo")) {
 				f[MFLAG_MINTWO] = 1;
-			} else if (!strcasecmp(argv[i], "talk-data-events")) {
-				f[MFLAG_TALK_DATA_EVENTS] = 1;
 			} else if (!strcasecmp(argv[i], "video-bridge")) {
 				f[MFLAG_VIDEO_BRIDGE] = 1;
 			} else if (!strcasecmp(argv[i], "ghost")) {
@@ -148,8 +144,6 @@ void conference_utils_set_mflags(const char *flags, member_flag_t *f)
 				f[MFLAG_NO_POSITIONAL] = 1;
 			} else if (!strcasecmp(argv[i], "join-vid-floor")) {
 				f[MFLAG_JOIN_VID_FLOOR] = 1;
-			} else if (!strcasecmp(argv[i], "no-video-blanks")) {
-				f[MFLAG_NO_VIDEO_BLANKS] = 1;
 			} else if (!strcasecmp(argv[i], "no-minimize-encoding")) {
 				f[MFLAG_NO_MINIMIZE_ENCODING] = 1;
 			} else if (!strcasecmp(argv[i], "second-screen")) {
@@ -237,7 +231,9 @@ void conference_utils_clear_eflags(char *events, uint32_t *f)
 				*next++ = '\0';
 			}
 
-			if (!strcmp(event, "del-member")) {
+			if (!strcmp(event, "add-member")) {
+				*f &= ~EFLAG_ADD_MEMBER;
+			} else if (!strcmp(event, "del-member")) {
 				*f &= ~EFLAG_DEL_MEMBER;
 			} else if (!strcmp(event, "energy-level")) {
 				*f &= ~EFLAG_ENERGY_LEVEL;
@@ -255,8 +251,6 @@ void conference_utils_clear_eflags(char *events, uint32_t *f)
 				*f &= ~EFLAG_MUTE_DETECT;
 			} else if (!strcmp(event, "mute-member")) {
 				*f &= ~EFLAG_MUTE_MEMBER;
-			} else if (!strcmp(event, "hold-member")) {
-				*f &= ~EFLAG_HOLD_MEMBER;
 			} else if (!strcmp(event, "kick-member")) {
 				*f &= ~EFLAG_KICK_MEMBER;
 			} else if (!strcmp(event, "dtmf-member")) {

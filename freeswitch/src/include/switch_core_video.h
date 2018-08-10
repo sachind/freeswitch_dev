@@ -44,17 +44,6 @@
 
 SWITCH_BEGIN_EXTERN_C
 
-#define CHROMAKEY_MAX_MASK 25
-
-typedef enum {
-	SCV_FILTER_GRAY_FG = (1 << 0),
-	SCV_FILTER_GRAY_BG = (1 << 1),
-	SCV_FILTER_SEPIA_FG = (1 << 2),
-	SCV_FILTER_SEPIA_BG = (1 << 3),
-	SCV_FILTER_8BIT_FG = (1 << 4)
-} switch_core_video_filter_t;
-
-
 typedef enum {
 	SWITCH_SHADE_NONE = 0,
 	SWITCH_SHADE_RED,
@@ -323,10 +312,6 @@ SWITCH_DECLARE(switch_image_t *) switch_img_copy_rect(switch_image_t *img, uint3
 * \param[in]    color     RGB color
 */
 SWITCH_DECLARE(void) switch_img_fill(switch_image_t *img, int x, int y, int w, int h, switch_rgb_color_t *color);
-SWITCH_DECLARE(void) switch_img_8bit(switch_image_t *img);
-
-SWITCH_DECLARE(void) switch_img_gray(switch_image_t *img, int x, int y, int w, int h);
-SWITCH_DECLARE(void) switch_img_sepia(switch_image_t *img, int x, int y, int w, int h);
 
 SWITCH_DECLARE(void) switch_img_fill_noalpha(switch_image_t *img, int x, int y, int w, int h, switch_rgb_color_t *color);
 
@@ -406,7 +391,6 @@ SWITCH_DECLARE(void) switch_png_free(switch_png_t **pngP);
 */
 SWITCH_DECLARE(void) switch_img_overlay(switch_image_t *IMG, switch_image_t *img, int x, int y, uint8_t percent);
 
-SWITCH_DECLARE(switch_status_t) switch_img_mirror(switch_image_t *src, switch_image_t **destP);
 SWITCH_DECLARE(switch_status_t) switch_img_scale(switch_image_t *src, switch_image_t **destP, int width, int height);
 SWITCH_DECLARE(switch_status_t) switch_img_fit(switch_image_t **srcP, int width, int height, switch_img_fit_t fit);
 SWITCH_DECLARE(switch_img_position_t) parse_img_position(const char *name);
@@ -472,22 +456,6 @@ SWITCH_DECLARE(switch_status_t) switch_ABGRToARGB(const uint8_t* src_frame, int 
 SWITCH_DECLARE(switch_status_t) switch_ARGBToARGB(const uint8_t* src_frame, int src_stride_frame,
 													uint8_t* dst_argb, int dst_stride_argb,
 													int width, int height);
-
-/*!\brief chromakey an img, img must be RGBA and return modified img */
-
-SWITCH_DECLARE(void) switch_img_chromakey(switch_image_t *img, switch_rgb_color_t *mask, int threshold);
-SWITCH_DECLARE(switch_status_t) switch_chromakey_clear_colors(switch_chromakey_t *ck);
-
-SWITCH_DECLARE(switch_status_t) switch_chromakey_autocolor(switch_chromakey_t *ck, switch_shade_t autocolor, uint32_t threshold);
-SWITCH_DECLARE(switch_status_t) switch_chromakey_add_color(switch_chromakey_t *ck, switch_rgb_color_t *color, uint32_t threshold);
-SWITCH_DECLARE(switch_status_t) switch_chromakey_destroy(switch_chromakey_t **ckP);
-SWITCH_DECLARE(switch_status_t) switch_chromakey_create(switch_chromakey_t **ckP);
-SWITCH_DECLARE(void) switch_chromakey_set_default_threshold(switch_chromakey_t *ck, uint32_t threshold);
-SWITCH_DECLARE(void) switch_chromakey_process(switch_chromakey_t *ck, switch_image_t *img);
-SWITCH_DECLARE(switch_image_t *) switch_chromakey_cache_image(switch_chromakey_t *ck);
-SWITCH_DECLARE(switch_shade_t) switch_chromakey_str2shade(switch_chromakey_t *ck, const char *shade_name);
-
-SWITCH_DECLARE(void) switch_core_video_parse_filter_string(switch_core_video_filter_t *filters, const char *filter_str);
 
 SWITCH_END_EXTERN_C
 #endif

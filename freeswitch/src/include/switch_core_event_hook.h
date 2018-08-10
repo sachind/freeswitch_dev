@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  *
  * switch_core_event_hook.h Core Event Hooks
@@ -41,8 +41,6 @@ typedef struct switch_io_event_hook_read_frame switch_io_event_hook_read_frame_t
 typedef struct switch_io_event_hook_video_read_frame switch_io_event_hook_video_read_frame_t;
 typedef struct switch_io_event_hook_write_frame switch_io_event_hook_write_frame_t;
 typedef struct switch_io_event_hook_video_write_frame switch_io_event_hook_video_write_frame_t;
-typedef struct switch_io_event_hook_text_read_frame switch_io_event_hook_text_read_frame_t;
-typedef struct switch_io_event_hook_text_write_frame switch_io_event_hook_text_write_frame_t;
 typedef struct switch_io_event_hook_kill_channel switch_io_event_hook_kill_channel_t;
 typedef struct switch_io_event_hook_send_dtmf switch_io_event_hook_send_dtmf_t;
 typedef struct switch_io_event_hook_recv_dtmf switch_io_event_hook_recv_dtmf_t;
@@ -56,8 +54,6 @@ typedef switch_status_t (*switch_read_frame_hook_t) (switch_core_session_t *, sw
 typedef switch_status_t (*switch_video_read_frame_hook_t) (switch_core_session_t *, switch_frame_t **, switch_io_flag_t, int);
 typedef switch_status_t (*switch_write_frame_hook_t) (switch_core_session_t *, switch_frame_t *, switch_io_flag_t, int);
 typedef switch_status_t (*switch_video_write_frame_hook_t) (switch_core_session_t *, switch_frame_t *, switch_io_flag_t, int);
-typedef switch_status_t (*switch_text_read_frame_hook_t) (switch_core_session_t *, switch_frame_t **, switch_io_flag_t, int);
-typedef switch_status_t (*switch_text_write_frame_hook_t) (switch_core_session_t *, switch_frame_t *, switch_io_flag_t, int);
 typedef switch_status_t (*switch_kill_channel_hook_t) (switch_core_session_t *, int);
 typedef switch_status_t (*switch_send_dtmf_hook_t) (switch_core_session_t *, const switch_dtmf_t *, switch_dtmf_direction_t direction);
 typedef switch_status_t (*switch_recv_dtmf_hook_t) (switch_core_session_t *, const switch_dtmf_t *, switch_dtmf_direction_t direction);
@@ -112,20 +108,6 @@ struct switch_io_event_hook_video_write_frame {
 	struct switch_io_event_hook_video_write_frame *next;
 };
 
-/*! \brief Node in which to store custom read frame channel callback hooks */
-struct switch_io_event_hook_text_read_frame {
-	/*! the read frame channel callback hook */
-	switch_read_frame_hook_t text_read_frame;
-	struct switch_io_event_hook_text_read_frame *next;
-};
-
-/*! \brief Node in which to store custom video_write_frame channel callback hooks */
-struct switch_io_event_hook_text_write_frame {
-	/*! the video_write_frame channel callback hook */
-	switch_video_write_frame_hook_t text_write_frame;
-	struct switch_io_event_hook_text_write_frame *next;
-};
-
 /*! \brief Node in which to store custom kill channel callback hooks */
 struct switch_io_event_hook_kill_channel {
 	/*! the kill channel callback hook */
@@ -176,12 +158,8 @@ struct switch_io_event_hooks {
 	switch_io_event_hook_video_read_frame_t *video_read_frame;
 	/*! a list of write frame hooks */
 	switch_io_event_hook_write_frame_t *write_frame;
-	/*! a list of text write frame hooks */
+	/*! a list of video write frame hooks */
 	switch_io_event_hook_video_write_frame_t *video_write_frame;
-	/*! a list of text write frame hooks */
-	switch_io_event_hook_text_write_frame_t *text_write_frame;
-	/*! a list of text read frame hooks */
-	switch_io_event_hook_text_read_frame_t *text_read_frame;
 	/*! a list of kill channel hooks */
 	switch_io_event_hook_kill_channel_t *kill_channel;
 	/*! a list of send dtmf hooks */
@@ -247,8 +225,6 @@ NEW_HOOK_DECL_ADD_P(read_frame);
 NEW_HOOK_DECL_ADD_P(write_frame);
 NEW_HOOK_DECL_ADD_P(video_read_frame);
 NEW_HOOK_DECL_ADD_P(video_write_frame);
-NEW_HOOK_DECL_ADD_P(text_read_frame);
-NEW_HOOK_DECL_ADD_P(text_write_frame);
 NEW_HOOK_DECL_ADD_P(kill_channel);
 NEW_HOOK_DECL_ADD_P(send_dtmf);
 NEW_HOOK_DECL_ADD_P(recv_dtmf);
@@ -262,8 +238,6 @@ NEW_HOOK_DECL_REM_P(read_frame);
 NEW_HOOK_DECL_REM_P(write_frame);
 NEW_HOOK_DECL_REM_P(video_read_frame);
 NEW_HOOK_DECL_REM_P(video_write_frame);
-NEW_HOOK_DECL_REM_P(text_read_frame);
-NEW_HOOK_DECL_REM_P(text_write_frame);
 NEW_HOOK_DECL_REM_P(kill_channel);
 NEW_HOOK_DECL_REM_P(send_dtmf);
 NEW_HOOK_DECL_REM_P(recv_dtmf);

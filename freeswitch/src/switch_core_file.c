@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Michael Jerris <mike@jerris.com>
  * Paul D. Tinsley <pdt at jackhammer.org>
@@ -35,30 +35,6 @@
 
 #include <switch.h>
 #include "private/switch_core_pvt.h"
-
-
-static switch_status_t get_file_size(switch_file_handle_t *fh, const char **string)
-{
-	switch_status_t status;
-	switch_file_t *newfile;
-	switch_size_t size = 0;
-
-	status = switch_file_open(&newfile, fh->spool_path ? fh->spool_path : fh->file_path, SWITCH_FOPEN_READ, SWITCH_FPROT_OS_DEFAULT, fh->memory_pool);
-
-	if (status != SWITCH_STATUS_SUCCESS) {
-		return status;
-	}
-
-	size = switch_file_get_size(newfile);
-
-	if (size) {
-		*string = switch_core_sprintf(fh->memory_pool, "%" SWITCH_SIZE_T_FMT, size);
-	}
-
-	status = switch_file_close(newfile);
-
-	return status;
-}
 
 SWITCH_DECLARE(switch_status_t) switch_core_perform_file_open(const char *file, const char *func, int line,
 															  switch_file_handle_t *fh,
@@ -73,7 +49,6 @@ SWITCH_DECLARE(switch_status_t) switch_core_perform_file_open(const char *file, 
 	int is_stream = 0;
 	char *fp = NULL;
 	int to = 0;
-	int force_channels = 0;
 
 	if (switch_test_flag(fh, SWITCH_FILE_OPEN)) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Handle already open\n");
@@ -81,11 +56,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_perform_file_open(const char *file, 
 	}
 
 	fh->samples_in = 0;
-	fh->samplerate = 0;
-	fh->native_rate = 0;
-	fh->channels = 0;
-	fh->real_channels = 0;
-	
+
 	if (!fh->samplerate) {
 		if (!(fh->samplerate = rate)) {
 			fh->samplerate = 8000;
@@ -124,22 +95,22 @@ SWITCH_DECLARE(switch_status_t) switch_core_perform_file_open(const char *file, 
 		char *modname;
 		const char *val;
 		int tmp;
-
+		
 		fp = switch_core_strdup(fh->memory_pool, file_path);
 
 		while (*fp == '{') {
 			char *parsed = NULL;
-
+			
 			if (switch_event_create_brackets(fp, '{', '}', ',', &fh->params, &parsed, SWITCH_FALSE) != SWITCH_STATUS_SUCCESS || !parsed) {
 				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Parse Error!\n");
 				goto fail;
 			}
-
+			
 			fp = parsed;
 		}
 
 		file_path = fp;
-
+		
 		if ((timeout = switch_event_get_header(fh->params, "timeout"))) {
 			if ((to = atoi(timeout)) < 1) {
 				to = 0;
@@ -152,15 +123,15 @@ SWITCH_DECLARE(switch_status_t) switch_core_perform_file_open(const char *file, 
 
 		if ((val = switch_event_get_header(fh->params, "samplerate"))) {
 			tmp = atoi(val);
-			if (tmp >= 8000) {
+			if (tmp > 8000) {
 				fh->mm.samplerate = tmp;
 			}
 		}
 
-		if ((val = switch_event_get_header(fh->params, "force_channels"))) {
+		if ((val = switch_event_get_header(fh->params, "channels"))) {
 			tmp = atoi(val);
-			if (tmp >= 0 && tmp < 3) {
-				force_channels = tmp;
+			if (tmp == 1 || tmp == 2) {
+				fh->mm.channels = tmp;
 			}
 		}
 
@@ -178,7 +149,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_perform_file_open(const char *file, 
 
 		if ((val = switch_event_get_header(fh->params, "vb"))) {
 			tmp = atoi(val);
-
+			
 			if (strrchr(val, 'k')) {
 				tmp *= 1024;
 			} else if (strrchr(val, 'm')) {
@@ -229,7 +200,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_perform_file_open(const char *file, 
 			} else if (strrchr(val, 'm')) {
 				tmp *= 1048576;
 			}
-
+			
 			if (tmp > 0 && tmp < 104857600 /*100mb*/) {
 				fh->mm.vbuf = tmp;
 			} else {
@@ -327,23 +298,10 @@ SWITCH_DECLARE(switch_status_t) switch_core_perform_file_open(const char *file, 
 		fh->handler = NULL;
 	}
 
-	if (force_channels == channels) {
-		force_channels = 0;
-	}
-
-	if (force_channels && force_channels > 0 && force_channels < 3) {
-		fh->real_channels = channels ? channels : fh->channels;
-		fh->channels = force_channels;
-		fh->mm.channels = fh->channels;
+	if (channels) {
+		fh->channels = channels;
 	} else {
-
-		if (channels) {
-			fh->channels = channels;
-		} else {
-			fh->channels = 1;
-		}
-
-		fh->mm.channels = fh->channels;
+		fh->channels = 1;
 	}
 
 	file_path = fh->spool_path ? fh->spool_path : fh->file_path;
@@ -356,12 +314,10 @@ SWITCH_DECLARE(switch_status_t) switch_core_perform_file_open(const char *file, 
 		goto fail;
 	}
 
-	if (!force_channels && !fh->real_channels) {
-		fh->real_channels = fh->channels;
+	fh->real_channels = fh->channels;
 
-		if (channels) {
-			fh->channels = channels;
-		}
+	if (channels) {
+		fh->channels = channels;
 	}
 
 	if ((flags & SWITCH_FILE_FLAG_WRITE) && !is_stream && (status = switch_file_exists(file_path, fh->memory_pool)) != SWITCH_STATUS_SUCCESS) {
@@ -417,7 +373,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_perform_file_open(const char *file, 
 
 	fh->samples_in = 0;
 	fh->max_samples = 0;
-
+	
 	if (switch_test_flag(fh, SWITCH_FILE_FLAG_FREE_POOL)) {
 		switch_core_destroy_memory_pool(&fh->memory_pool);
 	}
@@ -471,7 +427,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_file_read(switch_file_handle_t *fh, 
 				if ((status = fh->file_interface->file_read(fh, fh->pre_buffer_data, &rlen)) == SWITCH_STATUS_BREAK) {
 					return SWITCH_STATUS_BREAK;
 				}
-
+				
 
 				if (status != SWITCH_STATUS_SUCCESS || !rlen) {
 					switch_set_flag_locked(fh, SWITCH_FILE_BUFFER_DONE);
@@ -581,23 +537,6 @@ SWITCH_DECLARE(switch_status_t) switch_core_file_write(switch_file_handle_t *fh,
 		return SWITCH_STATUS_SUCCESS;
 	}
 
-
-	if (fh->real_channels != fh->channels && !switch_test_flag(fh, SWITCH_FILE_NOMUX)) {
-		int need = *len * 2 * fh->real_channels;
-
-		if (need > fh->muxlen) {
-			fh->muxbuf = realloc(fh->muxbuf, need);
-			switch_assert(fh->muxbuf);
-			fh->muxlen = need;
-			memcpy(fh->muxbuf, data, fh->muxlen);
-			data = fh->muxbuf;
-
-		}
-
-		switch_mux_channels((int16_t *) data, *len, fh->real_channels, fh->channels);
-	}
-
-
 	if (!switch_test_flag(fh, SWITCH_FILE_NATIVE) && fh->native_rate != fh->samplerate) {
 		if (!fh->resampler) {
 			if (switch_resample_create(&fh->resampler,
@@ -632,7 +571,6 @@ SWITCH_DECLARE(switch_status_t) switch_core_file_write(switch_file_handle_t *fh,
 	if (!*len) {
 		return SWITCH_STATUS_SUCCESS;
 	}
-
 
 	if (fh->pre_buffer) {
 		switch_size_t rlen, blen;
@@ -714,7 +652,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_file_seek(switch_file_handle_t *fh, 
 {
 	switch_status_t status;
 	int ok = 1;
-
+	
 	switch_assert(fh != NULL);
 
 	if (!switch_test_flag(fh, SWITCH_FILE_OPEN) || !fh->file_interface->file_seek) {
@@ -726,11 +664,11 @@ SWITCH_DECLARE(switch_status_t) switch_core_file_seek(switch_file_handle_t *fh, 
 	} else if (!switch_test_flag(fh, SWITCH_FILE_FLAG_READ)) {
 		ok = 0;
 	}
-
+	
 	if (!ok) {
 		return SWITCH_STATUS_FALSE;
 	}
-
+	
 	if (fh->buffer) {
 		switch_buffer_zero(fh->buffer);
 	}
@@ -779,32 +717,18 @@ SWITCH_DECLARE(switch_status_t) switch_core_file_set_string(switch_file_handle_t
 
 SWITCH_DECLARE(switch_status_t) switch_core_file_get_string(switch_file_handle_t *fh, switch_audio_col_t col, const char **string)
 {
-	switch_status_t status;
-
 	switch_assert(fh != NULL);
 	switch_assert(fh->file_interface != NULL);
 
-	if (!switch_test_flag(fh, SWITCH_FILE_OPEN) && col < SWITCH_AUDIO_COL_STR_FILE_SIZE) {
+	if (!switch_test_flag(fh, SWITCH_FILE_OPEN)) {
 		return SWITCH_STATUS_FALSE;
 	}
 
 	if (!fh->file_interface->file_get_string) {
-		if (col == SWITCH_AUDIO_COL_STR_FILE_SIZE) {
-			return get_file_size(fh, string);
-		}
-
 		return SWITCH_STATUS_FALSE;
 	}
 
-	status = fh->file_interface->file_get_string(fh, col, string);
-
-	if (status == SWITCH_STATUS_SUCCESS && string) return status;
-
-	if (col == SWITCH_AUDIO_COL_STR_FILE_SIZE) {
-		return get_file_size(fh, string);
-	}
-
-	return status;
+	return fh->file_interface->file_get_string(fh, col, string);
 }
 
 SWITCH_DECLARE(switch_status_t) switch_core_file_truncate(switch_file_handle_t *fh, int64_t offset)
@@ -840,7 +764,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_file_truncate(switch_file_handle_t *
 SWITCH_DECLARE(switch_status_t) switch_core_file_command(switch_file_handle_t *fh, switch_file_command_t command)
 {
 	switch_status_t status = SWITCH_STATUS_FALSE;
-
+	
 	switch_assert(fh != NULL);
 	switch_assert(fh->file_interface != NULL);
 
@@ -867,18 +791,15 @@ SWITCH_DECLARE(switch_status_t) switch_core_file_command(switch_file_handle_t *f
 	return status;
 }
 
-SWITCH_DECLARE(switch_status_t) switch_core_file_pre_close(switch_file_handle_t *fh)
+
+SWITCH_DECLARE(switch_status_t) switch_core_file_close(switch_file_handle_t *fh)
 {
-	switch_status_t status = SWITCH_STATUS_SUCCESS;
+	switch_status_t status;
 
 	switch_assert(fh != NULL);
 
-	if (!fh->file_interface) {
+	if (!fh->file_interface || !switch_test_flag(fh, SWITCH_FILE_OPEN)) {
 		return SWITCH_STATUS_FALSE;
-	}
-
-	if (!switch_test_flag(fh, SWITCH_FILE_OPEN)) {
-		return SWITCH_STATUS_SUCCESS;
 	}
 
 	if (fh->pre_buffer) {
@@ -904,23 +825,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_file_pre_close(switch_file_handle_t 
 	}
 
 	switch_clear_flag_locked(fh, SWITCH_FILE_OPEN);
-
-	if (fh->file_interface->file_pre_close) {
-		status = fh->file_interface->file_pre_close(fh);
-	}
-
-	return status;
-}
-
-SWITCH_DECLARE(switch_status_t) switch_core_file_close(switch_file_handle_t *fh)
-{
-	switch_status_t status = SWITCH_STATUS_SUCCESS;
-
-	if (switch_test_flag(fh, SWITCH_FILE_OPEN)) {
-		status = switch_core_file_pre_close(fh);
-	}
-
-	fh->file_interface->file_close(fh);
+	status = fh->file_interface->file_close(fh);
 
 	if (fh->params) {
 		switch_event_destroy(&fh->params);
@@ -928,7 +833,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_file_close(switch_file_handle_t *fh)
 
 	fh->samples_in = 0;
 	fh->max_samples = 0;
-	
+
 	if (fh->buffer) {
 		switch_buffer_destroy(&fh->buffer);
 	}
@@ -942,7 +847,6 @@ SWITCH_DECLARE(switch_status_t) switch_core_file_close(switch_file_handle_t *fh)
 	fh->memory_pool = NULL;
 
 	switch_safe_free(fh->dbuf);
-	switch_safe_free(fh->muxbuf);
 
 	if (fh->spool_path) {
 		char *command;

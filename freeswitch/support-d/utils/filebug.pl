@@ -6,7 +6,7 @@ use JIRA::REST;
 use Data::Dumper;
 
 my $editor = $ENV{"EDITOR"} || $ENV{"VISUAL"} || `which emacs` || `which vi`;
-my $default_versions = "1.9 1.8";
+my $default_versions = "1.7 1.6";
 my $default_components = "freeswitch-core";
 my $desc_head = "; Enter the description lines beginning with a ; will be ignored.\n";
 
@@ -239,7 +239,7 @@ if ($opts{debug}) {
     print Dumper $input;
 } else {
     $issue = $jira->POST('/issue', undef, $input) or die "Issue was not created:";
-    print "Issue Posted: " . $issue->{key} . "\n";
+    print "Issue Posted: " . $issue->{key};
 
     if ($opts{versions_array}) {
 	$input = {
@@ -253,7 +253,7 @@ if ($opts{debug}) {
 
 	$jira->PUT("/issue/" . $issue->{key}, undef, $input);
 
-	print "Fix versions updated for issue " . $issue->{key} . "\n";
+	print "Fix versions updated for issue " . $issue->{key};;
     }
     
 

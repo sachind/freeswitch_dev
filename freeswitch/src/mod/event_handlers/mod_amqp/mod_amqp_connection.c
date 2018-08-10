@@ -109,7 +109,7 @@ switch_status_t mod_amqp_connection_open(mod_amqp_connection_t *connections, mod
 
 	if (!(socket = amqp_tcp_socket_new(newConnection))) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Could not create TCP socket\n");
-		goto err;
+		return SWITCH_STATUS_GENERR;
 	}
 
 	connection_attempt = connections;
@@ -130,7 +130,7 @@ switch_status_t mod_amqp_connection_open(mod_amqp_connection_t *connections, mod
 
 	if (!connection_attempt) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Profile[%s] could not connect to any AMQP brokers\n", profile_name);
-		goto err;
+		return SWITCH_STATUS_GENERR;
 	}
 
 	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Profile[%s] opened socket connection to AMQP broker %s:%d\n",
@@ -150,15 +150,13 @@ switch_status_t mod_amqp_connection_open(mod_amqp_connection_t *connections, mod
 	if (mod_amqp_log_if_amqp_error(status, "Logging in")) {
 		mod_amqp_connection_close(*active);
 		*active = NULL;
-		goto err;
+		return SWITCH_STATUS_GENERR;
 	}
 
 	// Open a channel (1). This is fairly standard
 	amqp_channel_open(newConnection, 1);
 	if (mod_amqp_log_if_amqp_error(amqp_get_rpc_reply(newConnection), "Opening channel")) {
-		mod_amqp_connection_close(*active);
-		*active = NULL;
-		goto err;
+		return SWITCH_STATUS_GENERR;
 	}
 
 	(*active)->state = newConnection;
@@ -168,12 +166,6 @@ switch_status_t mod_amqp_connection_open(mod_amqp_connection_t *connections, mod
 	}
 
 	return SWITCH_STATUS_SUCCESS;
-
-err:
-    if (newConnection) {
-        amqp_destroy_connection(newConnection);
-    }
-    return SWITCH_STATUS_GENERR;
 }
 
 switch_status_t mod_amqp_connection_create(mod_amqp_connection_t **conn, switch_xml_t cfg, switch_memory_pool_t *pool)

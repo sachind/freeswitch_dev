@@ -102,33 +102,18 @@ void JSBase::AddInstance(Isolate *isolate, const Handle<Object>& handle, const H
 
 	// Make the handle weak
 	obj->persistentHandle->Reset(isolate, handle);
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-	obj->persistentHandle->SetWeak<JSBase>(obj, WeakCallback, WeakCallbackType::kParameter);
-#else
 	obj->persistentHandle->SetWeak<JSBase>(obj, WeakCallback);
-#endif
 	obj->persistentHandle->MarkIndependent();
 }
 
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-void JSBase::WeakCallback(const WeakCallbackInfo<JSBase>& data)
-#else
 void JSBase::WeakCallback(const WeakCallbackData<Object, JSBase>& data)
-#endif
 {
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-	JSBase *wrap = (JSBase*)data.GetParameter();
-#else
 	JSBase *wrap = data.GetParameter();
 	Local<Object> pobj = data.GetValue();
-#endif
 
 	if (wrap->autoDestroy) {
 		HandleScope scope(data.GetIsolate());
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-#else
 		assert(pobj == *wrap->persistentHandle);
-#endif
 		delete wrap;
 	} else if (!wrap->persistentHandle->IsEmpty()) {
 		wrap->persistentHandle->ClearWeak();
@@ -153,11 +138,7 @@ void JSBase::CreateInstance(const v8::FunctionCallbackInfo<Value>& args)
 		autoDestroy = args[1]->BooleanValue();
 	} else {
 		// Create a new C++ instance
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-		Handle<External> ex = Handle<External>::Cast(args.Data());
-#else
 		Handle<External> ex = Handle<External>::Cast(args.Callee()->GetHiddenValue(String::NewFromUtf8(args.GetIsolate(), "constructor_method")));
-#endif
 
 		if (ex->Value()) {
 			ConstructorCallback cb = (ConstructorCallback)ex->Value();
@@ -189,10 +170,8 @@ void JSBase::Register(Isolate *isolate, const js_class_definition_t *desc)
 	// Get the context's global scope (that's where we'll put the constructor)
 	Handle<Object> global = isolate->GetCurrentContext()->Global();
 
-	Local<External> data = External::New(isolate, (void *)desc->constructor);
-
 	// Create function template for our constructor it will call the JSBase::createInstance method
-	Handle<FunctionTemplate> function = FunctionTemplate::New(isolate, JSBase::CreateInstance, data);	
+	Handle<FunctionTemplate> function = FunctionTemplate::New(isolate, JSBase::CreateInstance);
 	function->SetClassName(String::NewFromUtf8(isolate, desc->name));
 
 	// Make room for saving the C++ object reference somewhere
@@ -210,10 +189,7 @@ void JSBase::Register(Isolate *isolate, const js_class_definition_t *desc)
 		function->InstanceTemplate()->SetAccessor(String::NewFromUtf8(isolate, desc->properties[i].name), desc->properties[i].get, desc->properties[i].set);
 	}
 
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-#else
 	function->GetFunction()->SetHiddenValue(String::NewFromUtf8(isolate, "constructor_method"), External::New(isolate, (void *)desc->constructor));
-#endif
 
 	// Set the function in the global scope, to make it available
 	global->Set(v8::String::NewFromUtf8(isolate, desc->name), function->GetFunction());
@@ -222,14 +198,13 @@ void JSBase::Register(Isolate *isolate, const js_class_definition_t *desc)
 void JSBase::RegisterInstance(Isolate *isolate, string name, bool autoDestroy)
 {
 	// Get the context's global scope (that's where we'll put the constructor)
-	Local<Context> context = isolate->GetCurrentContext();
-	Handle<Object> global = context->Global();
+	Handle<Object> global = isolate->GetCurrentContext()->Global();
 
 	Local<Function> func = Local<Function>::Cast(global->Get(v8::String::NewFromUtf8(isolate, this->GetJSClassName().c_str())));
 
 	// Add the C++ instance as an argument, so it won't try to create another one.
 	Handle<Value> args[] = { External::New(isolate, this), Boolean::New(isolate, autoDestroy) };
-	Handle<Object> newObj = func->NewInstance(context, 2, args).ToLocalChecked();
+	Handle<Object> newObj = func->NewInstance(2, args);
 
 	// Add the instance to JavaScript.
 	if (name.size() > 0) {

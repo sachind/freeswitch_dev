@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Luke Dashjr <luke@openmethods.com> (OpenMethods, LLC)
  *
@@ -33,7 +33,7 @@
 /*! \file switch_module_interfaces.h
   \brief Module Interface Definitions
 
-  This module holds the definition of data abstractions used to implement various pluggable
+  This module holds the definition of data abstractions used to implement various pluggable 
   interfaces and pluggable event handlers.
 
 */
@@ -44,7 +44,7 @@
 #include "switch_resample.h"
 
 SWITCH_BEGIN_EXTERN_C
-/*! \brief A table of functions to execute at various states
+/*! \brief A table of functions to execute at various states 
  */
 	typedef enum {
 	SWITCH_SHN_ON_INIT,
@@ -106,7 +106,7 @@ struct switch_stream_handle {
 struct switch_io_event_hooks;
 struct switch_say_file_handle;
 
-typedef switch_call_cause_t (*switch_io_outgoing_channel_t)
+typedef switch_call_cause_t (*switch_io_outgoing_channel_t)	
 	(switch_core_session_t *, switch_event_t *, switch_caller_profile_t *, switch_core_session_t **, switch_memory_pool_t **, switch_originate_flag_t,
 	 switch_call_cause_t *);
 typedef switch_status_t (*switch_io_read_frame_t) (switch_core_session_t *, switch_frame_t **, switch_io_flag_t, int);
@@ -119,8 +119,6 @@ typedef switch_status_t (*switch_io_state_change_t) (switch_core_session_t *);
 typedef switch_status_t (*switch_io_state_run_t) (switch_core_session_t *);
 typedef switch_status_t (*switch_io_read_video_frame_t) (switch_core_session_t *, switch_frame_t **, switch_io_flag_t, int);
 typedef switch_status_t (*switch_io_write_video_frame_t) (switch_core_session_t *, switch_frame_t *, switch_io_flag_t, int);
-typedef switch_status_t (*switch_io_read_text_frame_t) (switch_core_session_t *, switch_frame_t **, switch_io_flag_t, int);
-typedef switch_status_t (*switch_io_write_text_frame_t) (switch_core_session_t *, switch_frame_t *, switch_io_flag_t, int);
 typedef switch_jb_t *(*switch_io_get_jb_t) (switch_core_session_t *, switch_media_type_t);
 
 typedef enum {
@@ -134,8 +132,6 @@ typedef enum {
 	SWITCH_IO_STATE_CHANGE,
 	SWITCH_IO_READ_VIDEO_FRAME,
 	SWITCH_IO_WRITE_VIDEO_FRAME,
-	SWITCH_IO_READ_TEXT_FRAME,
-	SWITCH_IO_WRITE_TEXT_FRAME,
 	SWITCH_IO_GET_JB,
 } switch_io_routine_name_t;
 
@@ -161,10 +157,6 @@ struct switch_io_routines {
 	switch_io_read_video_frame_t read_video_frame;
 	/*! write a video frame to a session */
 	switch_io_write_video_frame_t write_video_frame;
-	/*! read a video frame from a session */
-	switch_io_read_text_frame_t read_text_frame;
-	/*! write a video frame to a session */
-	switch_io_write_text_frame_t write_text_frame;
 	/*! change a sessions channel run state */
 	switch_io_state_run_t state_run;
 	/*! get sessions jitterbuffer */
@@ -298,8 +290,6 @@ struct switch_file_interface {
 	switch_status_t (*file_set_string) (switch_file_handle_t *fh, switch_audio_col_t col, const char *string);
 	/*! function to get meta data */
 	switch_status_t (*file_get_string) (switch_file_handle_t *fh, switch_audio_col_t col, const char **string);
-	/*! function to pre close the file to read params */
-	switch_status_t (*file_pre_close) (switch_file_handle_t *fh);
 	/*! function to control the underlying tech of the file  */
 	switch_status_t (*file_command) (switch_file_handle_t *fh, switch_file_command_t command);
 	/*! list of supported file extensions */
@@ -380,8 +370,6 @@ struct switch_file_handle {
 	int64_t duration;
 	/*! current video position, or current page in pdf */
 	int64_t vpos;
-	void *muxbuf;
-	switch_size_t muxlen;
 };
 
 /*! \brief Abstract interface to an asr module */
@@ -535,7 +523,7 @@ struct switch_chat_interface {
 	const char *interface_name;
 	/*! function to open the directory interface */
 	switch_status_t (*chat_send) (switch_event_t *message_event);
-
+								  
 	switch_thread_rwlock_t *rwlock;
 	int refs;
 	switch_mutex_t *reflock;
@@ -623,7 +611,6 @@ struct switch_video_codec_settings {
 	int32_t width;
 	int32_t height;
 	uint8_t try_hardware_encoder;
-	uint8_t fps;
 };
 
 union switch_codec_settings {

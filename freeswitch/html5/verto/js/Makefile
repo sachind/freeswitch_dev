@@ -22,8 +22,6 @@ install-maxdemo: all verto-max.js
 
 install-video_demo: all
 	cp verto-min.js ../video_demo/js
-	cp verto-min.js ../video_demo-live_canvas/js
 
 install-video_maxdemo: all verto-max.js
 	cp verto-max.js ../video_demo/js/verto-min.js
-	cp verto-max.js ../video_demo-live_canvas/js/verto-min.js

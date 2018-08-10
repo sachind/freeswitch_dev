@@ -141,24 +141,6 @@ static void preprocess_exec_set(char *keyval)
 	}
 }
 
-static void preprocess_env_set(char *keyval)
-{
-	char *key = keyval;
-	char *val = strchr(key, '=');
-
-	if (key && val) {
-		*val++ = '\0';
-
-		if (*val++ == '$') {
-			char *data = getenv(val);
-
-			if (data) {
-				switch_core_set_variable(key, data);
-			}
-		}
-	}
-}
-
 static int preprocess(const char *cwd, const char *file, FILE *write_fd, int rlevel);
 
 typedef struct switch_xml_root *switch_xml_root_t;
@@ -1154,7 +1136,7 @@ SWITCH_DECLARE(switch_xml_t) switch_xml_parse_fp(FILE * fp)
 	char *s;
 
 	s = (char *) switch_must_malloc(SWITCH_XML_BUFSIZE);
-
+	
 	do {
 		len += (l = fread((s + len), 1, SWITCH_XML_BUFSIZE, fp));
 		if (l == SWITCH_XML_BUFSIZE) {
@@ -1487,8 +1469,6 @@ static int preprocess(const char *cwd, const char *file, FILE *write_fd, int rle
 
 			} else if (!strcasecmp(tcmd, "exec-set")) {
 				preprocess_exec_set(targ);
-			} else if (!strcasecmp(tcmd, "env-set")) {
-				preprocess_env_set(targ);
 			} else if (!strcasecmp(tcmd, "include")) {
 				preprocess_glob(cwd, targ, write_fd, rlevel + 1);
 			} else if (!strcasecmp(tcmd, "exec")) {
@@ -1873,12 +1853,6 @@ SWITCH_DECLARE(switch_status_t) switch_xml_locate_user_in_domain(const char *use
 				}
 			}
 		}
-	} else {
-		if ((users = switch_xml_child(domain, "users"))) {
-			status = find_user_in_tag(users, NULL, user_name, "id", NULL, user);
-		} else {
-			status = find_user_in_tag(domain, NULL, user_name, "id", NULL, user);
-		}
 	}
 
 	return status;
@@ -1905,18 +1879,18 @@ static void do_merge(switch_xml_t in, switch_xml_t src, const char *container, c
 			const char *var = switch_xml_attr(param, "name");
 			const char *val = switch_xml_attr(param, "value");
 
-			switch_bool_t add_child = SWITCH_TRUE;
+			int go = 1;
 
 			for (iparam = switch_xml_child(itag, tag_name); iparam; iparam = iparam->next) {
 				const char *ivar = switch_xml_attr(iparam, "name");
 
 				if (var && ivar && !strcasecmp(var, ivar)) {
-					add_child = SWITCH_FALSE;
+					go = 0;
 					break;
 				}
 			}
 
-			if (add_child) {
+			if (go) {
 				iitag = switch_xml_add_child_d(itag, tag_name, 0);
 				switch_xml_set_attr_d(iitag, "name", var);
 				switch_xml_set_attr_d(iitag, "value", val);
@@ -2091,7 +2065,7 @@ SWITCH_DECLARE(switch_status_t) switch_xml_locate_user_merged(const char *key, c
 
 				if (switch_is_number(cacheable)) {
 					int cache_ms = atol(cacheable);
-					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "caching lookup for user %s@%s for %d milliseconds\n",
+					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "caching lookup for user %s@%s for %d milliseconds\n", 
 									  user_name, domain_name, cache_ms);
 					time_now = switch_micro_time_now();
 					expires = time_now + (cache_ms * 1000);
@@ -2171,11 +2145,7 @@ SWITCH_DECLARE(switch_status_t) switch_xml_locate_user(const char *key,
 	}
 
 	if (status != SWITCH_STATUS_SUCCESS) {
-		if ((users = switch_xml_child(*domain, "users"))) {
-			status = find_user_in_tag(users, ip, user_name, key, params, user);
-		} else {
-			status = find_user_in_tag(*domain, ip, user_name, key, params, user);
-		}
+		status = find_user_in_tag(*domain, ip, user_name, key, params, user);
 	}
 
   end:
@@ -3112,6 +3082,12 @@ SWITCH_DECLARE(int) switch_xml_std_datetime_check(switch_xml_t xcond, int *offse
 				"XML DateTime Check: day of month[%d] =~ %s (%s)\n", test, xmday, time_match ? "PASS" : "FAIL");
 	}
 
+	if (time_match && xweek) {
+		int test = (int) (tm.tm_yday / 7 + 1);
+		time_match = switch_number_cmp(xweek, test);
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG9,
+				"XML DateTime Check: week of year[%d] =~ %s (%s)\n", test, xweek, time_match ? "PASS" : "FAIL");
+	}
 	if (time_match && xweek) {
 		int test = (int) (tm.tm_yday / 7 + 1);
 		time_match = switch_number_cmp(xweek, test);

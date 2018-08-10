@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  *
  *
@@ -52,12 +52,6 @@ struct switch_buffer {
 	uint32_t id;
 	int32_t loops;
 };
-
-
-SWITCH_DECLARE(void *) switch_buffer_get_head_pointer(switch_buffer_t *buffer)
-{
-	return buffer->head;
-}
 
 SWITCH_DECLARE(switch_status_t) switch_buffer_reset_partition_data(switch_buffer_t *buffer)
 {

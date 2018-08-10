@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -23,7 +23,7 @@
  *
  * Contributor(s):
  * Daniel Swarbrick <daniel.swarbrick@gmail.com>
- *
+ * 
  * mod_cdr_mongodb.c -- MongoDB CDR Module
  *
  * Derived from:
@@ -141,7 +141,7 @@ static switch_status_t my_on_reporting(switch_core_session_t *session)
 	bson cdr;
 	int is_b;
 	int bson_idx, callflow_idx;
-	char idx_buffer[12];
+	char idx_buffer[4];
 	char *tmp;
 
 	if (globals.shutdown) {

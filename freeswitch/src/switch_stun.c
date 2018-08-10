@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Fanzhou Zhao <fanzhou@gmail.com> 2006-08-22 (Bugfix 2357-2358)
  *
@@ -340,7 +340,7 @@ SWITCH_DECLARE(switch_stun_packet_t *) switch_stun_packet_parse(uint8_t *buf, ui
 			break;
 		}
 	} while (xlen < packet->header.length);
-
+	
 	if ((uint32_t) (packet->header.length + 20) > (uint32_t) (len - bytes_left)) {
 		/*
 		 * the packet length is longer than the length of all attributes?
@@ -348,7 +348,7 @@ SWITCH_DECLARE(switch_stun_packet_t *) switch_stun_packet_parse(uint8_t *buf, ui
 		 */
 		packet->header.length = (uint16_t) ((len - bytes_left) - 20);
 	}
-
+	
 	return packet;
 }
 
@@ -461,7 +461,7 @@ SWITCH_DECLARE(uint8_t) switch_stun_packet_attribute_add_binded_address(switch_s
 {
 	switch_stun_packet_attribute_t *attribute;
 	switch_stun_ip_t *ip;
-
+	
 	attribute = (switch_stun_packet_attribute_t *) ((uint8_t *) & packet->first_attribute + ntohs(packet->header.length));
 	attribute->type = htons(SWITCH_STUN_ATTR_XOR_MAPPED_ADDRESS);
 
@@ -495,7 +495,7 @@ SWITCH_DECLARE(uint8_t) switch_stun_packet_attribute_add_xor_binded_address(swit
 {
 	switch_stun_packet_attribute_t *attribute;
 	switch_stun_ip_t *ip;
-
+	
 	attribute = (switch_stun_packet_attribute_t *) ((uint8_t *) & packet->first_attribute + ntohs(packet->header.length));
 	attribute->type = htons(SWITCH_STUN_ATTR_XOR_MAPPED_ADDRESS);
 
@@ -722,7 +722,7 @@ SWITCH_DECLARE(switch_status_t) switch_stun_lookup(char **ip,
 	unsigned int elapsed = 0;
 	int funny = 0;
 	int size = sizeof(buf);
-	int xlen = sizeof(switch_stun_packet_header_t);
+	int xlen = sizeof(switch_stun_packet_header_t);	
 
 	switch_assert(err);
 

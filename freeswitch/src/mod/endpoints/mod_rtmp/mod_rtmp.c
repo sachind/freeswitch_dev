@@ -176,8 +176,6 @@ switch_status_t rtmp_tech_init(rtmp_private_t *tech_pvt, rtmp_session_t *rsessio
 		on_rtmp_tech_init(session, tech_pvt);
 	}
 
-	switch_channel_set_flag(tech_pvt->channel, CF_AUDIO);
-	
 	switch_core_session_set_private(session, tech_pvt);
 
 	// switch_core_session_start_video_thread(session);
@@ -2019,7 +2017,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_rtmp_load)
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Couldn't register subclass %s!\n", RTMP_EVENT_ATTACH);
 		return SWITCH_STATUS_TERM;
 	}
-
+	
 	memset(&rtmp_globals, 0, sizeof(rtmp_globals));
 
 	switch_mutex_init(&rtmp_globals.mutex, SWITCH_MUTEX_NESTED, pool);
@@ -2120,7 +2118,7 @@ SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_rtmp_shutdown)
 	switch_event_free_subclass(RTMP_EVENT_LOGOUT);
 	switch_event_free_subclass(RTMP_EVENT_DETACH);
 	switch_event_free_subclass(RTMP_EVENT_ATTACH);
-
+	
 	switch_mutex_lock(rtmp_globals.mutex);
 	while ((hi = switch_core_hash_first_iter(rtmp_globals.profile_hash, hi))) {
 		void *val;

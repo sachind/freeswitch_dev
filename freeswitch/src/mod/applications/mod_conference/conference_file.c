@@ -46,7 +46,6 @@ switch_status_t conference_file_close(conference_obj_t *conference, conference_f
 {
 	switch_event_t *event;
 	conference_member_t *member = NULL;
-	mcu_canvas_t *canvas = NULL;
 
 	if (test_eflag(conference, EFLAG_PLAY_FILE_DONE) &&
 		switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, CONF_EVENT_MAINT) == SWITCH_STATUS_SUCCESS) {
@@ -93,20 +92,12 @@ switch_status_t conference_file_close(conference_obj_t *conference, conference_f
 	}
 #endif
 
-	if (node->canvas_id > -1 && conference->canvases[node->canvas_id]) {
-		canvas = conference->canvases[node->canvas_id];
-
-		if (canvas->playing_video_file) {
-			canvas->send_keyframe = 1;
-			canvas->playing_video_file = 0;
-		}
-
-		if (canvas->overlay_video_file) {
-			canvas->send_keyframe = 1;
-			canvas->overlay_video_file = 0;
-		}
-		canvas->play_file = 0;
+	if (conference->playing_video_file) {
+		conference->canvases[node->canvas_id]->send_keyframe = 1;
+		conference->canvases[node->canvas_id]->play_file = 0;
+		conference->playing_video_file = 0;
 	}
+
 
 	return switch_core_file_close(&node->fh);
 }
@@ -279,60 +270,19 @@ switch_status_t conference_file_play(conference_obj_t *conference, char *file, u
 		goto done;
 	}
 
-	fnode->layer_lock = -1;
-
 	if (fnode->fh.params) {
 		const char *vol = switch_event_get_header(fnode->fh.params, "vol");
 		const char *position = switch_event_get_header(fnode->fh.params, "position");
 		const char *canvasstr = switch_event_get_header(fnode->fh.params, "canvas");
 		const char *loopsstr = switch_event_get_header(fnode->fh.params, "loops");
-		const char *overlay_layer = switch_event_get_header(fnode->fh.params, "overlay_layer");
-		const char *overlay_member = switch_event_get_header(fnode->fh.params, "overlay_member");
-		const char *overlay_role = switch_event_get_header(fnode->fh.params, "overlay_role");
-		const char *file_filters = switch_event_get_header(fnode->fh.params, "file_filters");
 		int canvas_id = -1;
-		int layer_id = -1;
-
-
-		if (!zstr(file_filters)) {
-			switch_core_video_parse_filter_string(&fnode->filters, file_filters);
-		}
-
+		
 		if (loopsstr) {
 			fnode->loops = atoi(loopsstr);
 
 			if (!strcasecmp(loopsstr, "inf") || !strcasecmp(loopsstr, "infinite")) {
 				fnode->loops = -1;
 			}
-		}
-
-		if (overlay_role) {
-			conference_member_t *member;
-
-			if ((member = conference_member_get_by_role(conference, overlay_role))) {
-				layer_id = member->video_layer_id;
-				switch_thread_rwlock_unlock(member->rwlock);
-			}
-		} else if (overlay_member) {
-			int id = atoi(overlay_member);
-
-			if (id > 0) {
-				conference_member_t *member;
-
-				if ((member = conference_member_get(conference, id))) {
-					layer_id = member->video_layer_id;
-					switch_thread_rwlock_unlock(member->rwlock);
-				}
-			}
-		}
-
-		if (layer_id < 0 && overlay_layer) {
-			layer_id = atoi(overlay_layer);
-		}
-
-		if (layer_id > -1) {
-			fnode->layer_lock = layer_id;
-			fnode->layer_id = layer_id;
 		}
 
 		if (canvasstr) {

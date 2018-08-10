@@ -159,9 +159,6 @@ var callbacks = {
                 }
             }
             break;
-        case $.verto.enum.message.clientReady:
-//            console.error("clientReady", data);
-						break;
         case $.verto.enum.message.info:
 	    var body = data.body;
 
@@ -231,7 +228,7 @@ var callbacks = {
             });
 
             $("#declinebtn").click(function() {
-                cur_call.hangup({"cause": "CALL_REJECTED"});
+                cur_call.hangup();
                 $('#dialog-incoming-call').dialog('close');
             });
 

@@ -25,7 +25,6 @@
  * Peter Olsson <peter@olssononline.se>
  * Anthony Minessale II <anthm@freeswitch.org>
  * William King <william.king@quentustech.com>
- * Andrey Volk <andywolk@gmail.com>
  *
  * mod_v8.cpp -- JavaScript FreeSWITCH module
  *
@@ -36,7 +35,6 @@
  *
  * It extends the available JavaScript classes with the following FS related classes;
  * CoreDB		Adds features to access the core DB (SQLite) in FreeSWITCH. (on request only)
- * DBH			Database Handler. Makes use of connection pooling provided by FreeSWITCH. (on request only)
  * CURL			Adds some extra methods for CURL access. (on request only)
  * DTMF			Object that holds information about a DTMF event.
  * Event		Object that holds information about a FreeSWITCH event.
@@ -85,7 +83,6 @@
 
 /* Optional JavaScript classes (loaded on demand) */
 #include "fscoredb.hpp"
-#include "fsdbh.hpp"
 #include "fscurl.hpp"
 #include "fsteletone.hpp"
 #include "fssocket.hpp"
@@ -109,7 +106,6 @@ SWITCH_MODULE_DEFINITION_EX(mod_v8, mod_v8_load, mod_v8_shutdown, NULL, SMODF_GL
 /* API interfaces */
 static switch_api_interface_t *jsrun_interface = NULL;
 static switch_api_interface_t *jsapi_interface = NULL;
-static switch_api_interface_t *jsmon_interface = NULL;
 
 /* Module manager for loadable modules */
 module_manager_t module_manager = { 0 };
@@ -120,28 +116,9 @@ typedef struct {
 	switch_mutex_t *event_mutex;
 	switch_event_node_t *event_node;
 	set<FSEventHandler *> *event_handlers;
-	char *xml_handler;
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-	v8::Platform *v8platform;
-	switch_hash_t *compiled_script_hash;
-	switch_mutex_t *compiled_script_hash_mutex;
-	char *script_caching;
-	switch_time_t cache_expires_seconds;
-	bool performance_monitor;
-	switch_mutex_t *mutex;
-#endif
 } mod_v8_global_t;
 
 static mod_v8_global_t globals = { 0 };
-
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-/* Struct to store cached script data */
-typedef struct {
-	std::shared_ptr<uint8_t> data;
-	int length;
-	switch_time_t compile_time;
-} v8_compiled_script_cache_t;
-#endif
 
 /* Loadable module struct, used for external extension modules */
 typedef struct {
@@ -157,10 +134,6 @@ static int debug_listen_port = 9999;
 static bool debug_wait_for_connection = true;
 static bool debug_manual_break = true;
 #endif
-
-static void v8_thread_launch(const char *text);
-static void v8_event_handler(switch_event_t *event);
-static switch_xml_t v8_fetch(const char *section, const char *tag_name, const char *key_name, const char *key_value, switch_event_t *params, void *user_data);
 
 using namespace v8;
 
@@ -321,83 +294,6 @@ static switch_status_t load_modules(void)
 	return SWITCH_STATUS_SUCCESS;
 }
 
-static void load_configuration(void)
-{
-	const char *cf = "v8.conf";
-	switch_xml_t cfg, xml;
-
-	if ((xml = switch_xml_open_cfg(cf, &cfg, NULL))) {
-		switch_xml_t settings, param, hook;
-
-		if ((settings = switch_xml_child(cfg, "settings"))) {
-			for (param = switch_xml_child(settings, "param"); param; param = param->next) {
-				char *var = (char *)switch_xml_attr_soft(param, "name");
-				char *val = (char *)switch_xml_attr_soft(param, "value");
-
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-				if (!strcmp(var, "script-caching")) {
-					globals.script_caching = switch_core_strdup(globals.pool, val);
-				} else if (!strcmp(var, "cache-expires-sec")) {
-					int v = atoi(val);
-					globals.cache_expires_seconds = (v > 0) ? v : 0;
-				} else 
-#endif
-				if (!strcmp(var, "xml-handler-script")) {
-					globals.xml_handler = switch_core_strdup(globals.pool, val);
-				}
-				else if (!strcmp(var, "xml-handler-bindings")) {
-					if (!zstr(globals.xml_handler)) {
-						switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "binding '%s' to '%s'\n", globals.xml_handler, val);
-						switch_xml_bind_search_function(v8_fetch, switch_xml_parse_section_string(val), NULL);
-					}
-				}
-				else if (!strcmp(var, "startup-script")) {
-					if (val) {
-						v8_thread_launch(val);
-					}
-				}
-			}
-
-			for (hook = switch_xml_child(settings, "hook"); hook; hook = hook->next) {
-				char *event = (char *)switch_xml_attr_soft(hook, "event");
-				char *subclass = (char *)switch_xml_attr_soft(hook, "subclass");
-				char *script = (char *)switch_xml_attr_soft(hook, "script");
-				switch_event_types_t evtype;
-
-				if (!zstr(script)) {
-					script = switch_core_strdup(globals.pool, script);
-				}
-
-				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "hook params: '%s' | '%s' | '%s'\n", event, subclass, script);
-
-				if (switch_name_event(event, &evtype) == SWITCH_STATUS_SUCCESS) {
-					if (!zstr(script)) {
-						if (switch_event_bind(modname, evtype, !zstr(subclass) ? subclass : SWITCH_EVENT_SUBCLASS_ANY,
-							v8_event_handler, script) == SWITCH_STATUS_SUCCESS) {
-							switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "event handler for '%s' set to '%s'\n", switch_event_name(evtype), script);
-						}
-						else {
-							switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "cannot set event handler: unsuccessful bind\n");
-						}
-					}
-					else {
-						switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "cannot set event handler: no script name for event type '%s'\n", event);
-					}
-				}
-				else {
-					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "cannot set event handler: unknown event type '%s'\n", event);
-				}
-			}
-		}
-
-		switch_xml_free(xml);
-
-	}
-	else {
-		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CONSOLE, "Open of %s failed\n", cf);
-	}
-}
-
 static int env_init(JSMain *js)
 {
 	/* Init all "global" functions first */
@@ -486,122 +382,7 @@ static char *v8_get_script_path(const char *script_file)
 	}
 }
 
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-void perf_log(const char *fmt, ...)
-{
-	va_list ap;
-	va_start(ap, fmt);
-
-	switch_mutex_lock(globals.mutex);
-	if (globals.performance_monitor) {
-		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, fmt, ap);
-	}
-	switch_mutex_unlock(globals.mutex);
-
-	va_end(ap);
-}
-
-template< typename T >
-struct array_deleter
-{
-	void operator ()(T const * p)
-	{
-		delete[] p;
-	}
-};
-
-static void destructor(void *ptr)
-{
-	delete (v8_compiled_script_cache_t*)ptr;
-}
-
-void LoadScript(MaybeLocal<v8::Script> *v8_script, Isolate *isolate, const char *script_data, const char *script_file)
-{
-	switch_time_t start = switch_time_now();
-
-	ScriptCompiler::CachedData *cached_data = 0;
-	v8_compiled_script_cache_t *stored_compiled_script_cache = NULL;
-	ScriptCompiler::CompileOptions options;
-
-	/*
-		Do not cache if the caching is disabled
-		Do not cache inline scripts
-	*/
-	if (!switch_true(globals.script_caching) || !strcasecmp(script_file, "inline") || zstr(script_file)) {
-		options = ScriptCompiler::kNoCompileOptions;
-		perf_log("Javascript caching is disabled.\n", script_file);
-	} else {
-		options = ScriptCompiler::kConsumeCodeCache;
-
-		switch_mutex_lock(globals.compiled_script_hash_mutex);
-
-		void *hash_found = switch_core_hash_find(globals.compiled_script_hash, script_file);
-		if (hash_found)
-		{
-			stored_compiled_script_cache = new v8_compiled_script_cache_t;
-			*stored_compiled_script_cache = *((v8_compiled_script_cache_t *)hash_found);
-		}
-
-		switch_mutex_unlock(globals.compiled_script_hash_mutex);
-
-		if (stored_compiled_script_cache)
-		{
-			switch_time_t time_left_since_compile_sec = (switch_time_now() - stored_compiled_script_cache->compile_time) / 1000000;
-			if (time_left_since_compile_sec <= globals.cache_expires_seconds || globals.cache_expires_seconds == 0) {
-				cached_data = new ScriptCompiler::CachedData(stored_compiled_script_cache->data.get(), stored_compiled_script_cache->length, ScriptCompiler::CachedData::BufferNotOwned);
-			} else {
-				perf_log("Javascript ['%s'] cache expired.\n", script_file);
-				switch_core_hash_delete_locked(globals.compiled_script_hash, script_file, globals.compiled_script_hash_mutex);
-			}
-
-		}
-		
-		if (!cached_data) options = ScriptCompiler::kProduceCodeCache;
-
-	}
-
-	ScriptCompiler::Source source(String::NewFromUtf8(isolate, script_data), cached_data);
-	*v8_script = ScriptCompiler::Compile(isolate->GetCurrentContext(), &source, options);	
-
-	if (!v8_script->IsEmpty()) {
-
-		if (options == ScriptCompiler::kProduceCodeCache && !source.GetCachedData()->rejected) {
-			int length = source.GetCachedData()->length;
-			uint8_t* raw_cached_data = new uint8_t[length];
-			v8_compiled_script_cache_t *compiled_script_cache = new v8_compiled_script_cache_t;
-			memcpy(raw_cached_data, source.GetCachedData()->data, static_cast<size_t>(length));
-			compiled_script_cache->data.reset(raw_cached_data, array_deleter<uint8_t>());
-			compiled_script_cache->length = length;
-			compiled_script_cache->compile_time = switch_time_now();
-
-			switch_mutex_lock(globals.compiled_script_hash_mutex);
-			switch_core_hash_insert_destructor(globals.compiled_script_hash, script_file, compiled_script_cache, destructor);
-			switch_mutex_unlock(globals.compiled_script_hash_mutex);
-			
-			perf_log("Javascript ['%s'] cache was produced.\n", script_file);
-
-		} else if (options == ScriptCompiler::kConsumeCodeCache) {
-
-			if (source.GetCachedData()->rejected) {
-				perf_log("Javascript ['%s'] cache was rejected.\n", script_file);
-				switch_core_hash_delete_locked(globals.compiled_script_hash, script_file, globals.compiled_script_hash_mutex);
-			} else {
-				perf_log("Javascript ['%s'] execution using cache.\n", script_file);
-			}
-
-		}
-	}
-
-	if (stored_compiled_script_cache)
-		delete stored_compiled_script_cache;
-
-	switch_time_t end = switch_time_now();
-	perf_log("Javascript ['%s'] loaded in %u microseconds.\n", script_file, (end - start));
-
-}
-#endif
-
-static int v8_parse_and_execute(switch_core_session_t *session, const char *input_code, switch_stream_handle_t *api_stream, v8_event_t *v8_event, v8_xml_handler_t* xml_handler)
+static int v8_parse_and_execute(switch_core_session_t *session, const char *input_code, switch_stream_handle_t *api_stream, switch_event_t *message)
 {
 	string res;
 	JSMain *js;
@@ -645,7 +426,7 @@ static int v8_parse_and_execute(switch_core_session_t *session, const char *inpu
 			isolate->SetData(0, js);
 
 			// New global template
-			Handle<ObjectTemplate> global = ObjectTemplate::New(isolate);
+			Handle<ObjectTemplate> global = ObjectTemplate::New();
 
 			if (global.IsEmpty()) {
 				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Failed to create JS global object template\n");
@@ -707,9 +488,8 @@ static int v8_parse_and_execute(switch_core_session_t *session, const char *inpu
 						context->Global()->Set(String::NewFromUtf8(isolate, "session"), Boolean::New(isolate, false));
 					}
 
-					if (v8_event) {
-						if (v8_event->event && v8_event->var_name)
-						    FSEvent::New(v8_event->event, v8_event->var_name, js);
+					if (message) {
+						FSEvent::New(message, "message", js);
 					}
 
 					if (api_stream) {
@@ -719,24 +499,6 @@ static int v8_parse_and_execute(switch_core_session_t *session, const char *inpu
 						FSRequest *ptr = new FSRequest(js);
 						ptr->Init(input_code, api_stream);
 						ptr->RegisterInstance(isolate, "request", true);
-					}
-
-					if (xml_handler)
-					{
-						/* Add xml handler global variables */
-
-						Handle<Array> XML_REQUEST = Array::New(isolate, 4);
-
-						XML_REQUEST->Set(String::NewFromUtf8(isolate, "key_name"), String::NewFromUtf8(isolate, js_safe_str(xml_handler->key_name)));
-						XML_REQUEST->Set(String::NewFromUtf8(isolate, "key_value"), String::NewFromUtf8(isolate, js_safe_str(xml_handler->key_value)));
-						XML_REQUEST->Set(String::NewFromUtf8(isolate, "section"), String::NewFromUtf8(isolate, js_safe_str(xml_handler->section)));
-						XML_REQUEST->Set(String::NewFromUtf8(isolate, "tag_name"), String::NewFromUtf8(isolate, js_safe_str(xml_handler->tag_name)));
-
-						context->Global()->Set(String::NewFromUtf8(isolate, "XML_REQUEST"), XML_REQUEST);
-
-						if (xml_handler->params) {
-							FSEvent::New(xml_handler->params, "params", js);
-						}
 					}
 
 					script = input_code;
@@ -792,19 +554,13 @@ static int v8_parse_and_execute(switch_core_session_t *session, const char *inpu
 							context->Global()->Set(String::NewFromUtf8(isolate, "scriptPath"), String::NewFromUtf8(isolate, path));
 							free(path);
 						}
-
-						TryCatch try_catch(isolate);
-
-						// Compile the source code.
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-						switch_time_t start = switch_time_now();
-						MaybeLocal<v8::Script> v8_script;
-						LoadScript(&v8_script, isolate, script_data, script_file);
-#else
 						// Create a string containing the JavaScript source code.
 						Handle<String> source = String::NewFromUtf8(isolate, script_data);
+
+						TryCatch try_catch;
+
+						// Compile the source code.
 						Handle<Script> v8_script = Script::Compile(source, Local<Value>::New(isolate, String::NewFromUtf8(isolate, script_file)));
-#endif
 
 						if (try_catch.HasCaught()) {
 							v8_error(isolate, &try_catch);
@@ -816,24 +572,7 @@ static int v8_parse_and_execute(switch_core_session_t *session, const char *inpu
 								Debug::DebugBreak(isolate);
 							}
 #endif
-
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-							Handle<Value> result;
-
-							if (!v8_script.IsEmpty()) {
-								result = v8_script.ToLocalChecked()->Run();
-							}
-
-							switch_mutex_lock(globals.mutex);
-							if (globals.performance_monitor) {
-								switch_time_t end = switch_time_now();
-								unsigned int delay = (end - start);
-								switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Javascript execution time: %u microseconds\n", delay);
-							}
-							switch_mutex_unlock(globals.mutex);
-#else
 							Handle<Value> result = v8_script->Run();
-#endif
 							if (try_catch.HasCaught()) {
 								v8_error(isolate, &try_catch);
 							} else {
@@ -847,16 +586,6 @@ static int v8_parse_and_execute(switch_core_session_t *session, const char *inpu
 									String::Utf8Value ascii(result);
 									if (*ascii) {
 										res = *ascii;
-									}
-								}
-
-								if (xml_handler)
-								{
-									Local<Value> value = context->Global()->Get(String::NewFromUtf8(isolate, "XML_STRING"));
-									String::Utf8Value str(value);
-									if (strcmp(js_safe_str(*str), "undefined"))
-									{
-										xml_handler->XML_STRING = strdup(js_safe_str(*str));
 									}
 								}
 							}
@@ -888,7 +617,7 @@ static int v8_parse_and_execute(switch_core_session_t *session, const char *inpu
 #endif
 	}
 	//isolate->Exit();
-
+	
 	if (res.length() == 0) {
 		result = -1;
 	} else {
@@ -905,81 +634,16 @@ static int v8_parse_and_execute(switch_core_session_t *session, const char *inpu
 	return result;
 }
 
-static switch_xml_t v8_fetch(const char *section,
-	const char *tag_name, const char *key_name, const char *key_value, switch_event_t *params, void *user_data)
-{
-	switch_xml_t xml = NULL;
-	char *mycmd = NULL;
-
-	if (!zstr(globals.xml_handler)) {
-
-		mycmd = strdup(globals.xml_handler);
-		switch_assert(mycmd);
-
-		v8_xml_handler_t xml_handler;
-		xml_handler.section = section;
-		xml_handler.tag_name = tag_name;
-		xml_handler.key_name = key_name;
-		xml_handler.key_value = key_value;
-		xml_handler.params = params;
-		xml_handler.user_data = user_data;
-		xml_handler.XML_STRING = NULL; //Init as NULL. A script's global var XML_STRING will be duplicated to it!
-
-		v8_parse_and_execute(NULL, mycmd, NULL, NULL, &xml_handler);
-
-		if (xml_handler.XML_STRING) {
-			if (zstr(xml_handler.XML_STRING)) {
-				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "No Result\n");
-			}
-			else if (!(xml = switch_xml_parse_str_dynamic(xml_handler.XML_STRING, SWITCH_TRUE))) {
-				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Error Parsing XML Result!\n");
-			}
-		}
-
-		// Don't forget to free XML_STRING
-		switch_safe_free(xml_handler.XML_STRING);
-
-	}
-
-	switch_safe_free(mycmd);
-
-	return xml;
-}
-
-static void v8_event_handler(switch_event_t *event)
-{
-	char *script = NULL;
-
-	if (event->bind_user_data) {
-		script = strdup((char *)event->bind_user_data);
-	}
-
-	v8_event_t v8_event;
-
-	v8_event.event = event;
-	v8_event.var_name = "event";
-
-	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "v8 event hook: execute '%s'\n", (char *)script);
-	v8_parse_and_execute(NULL, script, NULL, &v8_event, NULL);
-
-	switch_safe_free(script);
-}
-
 SWITCH_BEGIN_EXTERN_C
 
 SWITCH_STANDARD_APP(v8_dp_function)
 {
-	v8_parse_and_execute(session, data, NULL, NULL, NULL);
+	v8_parse_and_execute(session, data, NULL, NULL);
 }
 
 SWITCH_STANDARD_CHAT_APP(v8_chat_function)
 {
-	v8_event_t v8_event;
-
-	v8_event.event = message;
-	v8_event.var_name = "message";
-
-	v8_parse_and_execute(NULL, data, NULL, &v8_event, NULL);
+	v8_parse_and_execute(NULL, data, NULL, message);
 
 	return SWITCH_STATUS_SUCCESS;
 }
@@ -996,7 +660,7 @@ static void *SWITCH_THREAD_FUNC v8_thread_run(switch_thread_t *thread, void *obj
 	v8_task_t *task = (v8_task_t *) obj;
 	switch_memory_pool_t *pool;
 
-	v8_parse_and_execute(NULL, task->code, NULL, NULL, NULL);
+	v8_parse_and_execute(NULL, task->code, NULL, NULL);
 
 	if ((pool = task->pool)) {
 		switch_core_destroy_memory_pool(&pool);
@@ -1096,7 +760,7 @@ SWITCH_STANDARD_API(jsapi_function)
 		return SWITCH_STATUS_SUCCESS;
 	}
 
-	v8_parse_and_execute(session, (char *) cmd, stream, NULL, NULL);
+	v8_parse_and_execute(session, (char *) cmd, stream, NULL);
 
 	return SWITCH_STATUS_SUCCESS;
 }
@@ -1109,7 +773,7 @@ SWITCH_STANDARD_JSON_API(json_function)
 	switch_stream_handle_t stream = { 0 };
 
 	if ((data = cJSON_GetObjectItem(json, "data"))) {
-		path = cJSON_GetObjectItem(data, "path");
+		path = cJSON_GetObjectItem(data, "path"); 
 	}
 
 	if (!(path && data)) {
@@ -1123,8 +787,8 @@ SWITCH_STANDARD_JSON_API(json_function)
 	switch_event_add_header_string(stream.param_event, SWITCH_STACK_BOTTOM, "JSON", json_text);
 	switch_safe_free(json_text);
 
-	v8_parse_and_execute(session, (char *) path->valuestring, &stream, NULL, NULL);
-
+	v8_parse_and_execute(session, (char *) path->valuestring, &stream, NULL);
+	
 	*json_reply = cJSON_Parse((char *)stream.data);
 
  end:
@@ -1136,7 +800,7 @@ SWITCH_STANDARD_JSON_API(json_function)
 
 	switch_event_destroy(&stream.param_event);
 	switch_safe_free(stream.data);
-
+	
 	return SWITCH_STATUS_SUCCESS;
 }
 
@@ -1148,32 +812,6 @@ SWITCH_STANDARD_API(launch_async)
 	}
 
 	v8_thread_launch(cmd);
-	stream->write_function(stream, "+OK\n");
-	return SWITCH_STATUS_SUCCESS;
-}
-
-SWITCH_STANDARD_API(jsmon_function)
-{
-	if (zstr(cmd)) {
-		stream->write_function(stream, "USAGE: %s\n", jsmon_interface->syntax);
-		return SWITCH_STATUS_SUCCESS;
-	}
-
-	if (!strcasecmp(cmd, "on")) {
-		switch_mutex_lock(globals.mutex);
-		globals.performance_monitor = true;
-		switch_mutex_unlock(globals.mutex);
-		stream->write_function(stream, "Performance monitor has been enabled.\n", jsmon_interface->syntax);
-	} else if (!strcasecmp(cmd, "off")) {
-		switch_mutex_lock(globals.mutex);
-		globals.performance_monitor = false;
-		switch_mutex_unlock(globals.mutex);
-		stream->write_function(stream, "Performance monitor has been disabled.\n", jsmon_interface->syntax);
-	} else {
-		stream->write_function(stream, "USAGE: %s\n", jsmon_interface->syntax);
-		return SWITCH_STATUS_SUCCESS;
-	}
-	
 	stream->write_function(stream, "+OK\n");
 	return SWITCH_STATUS_SUCCESS;
 }
@@ -1191,10 +829,6 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_v8_load)
 
 	globals.pool = pool;
 
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-	switch_mutex_init(&globals.compiled_script_hash_mutex, SWITCH_MUTEX_NESTED, globals.pool);
-	switch_mutex_init(&globals.mutex, SWITCH_MUTEX_NESTED, globals.pool);
-#endif
 	switch_mutex_init(&globals.event_mutex, SWITCH_MUTEX_NESTED, globals.pool);
 	globals.event_handlers = new set<FSEventHandler *>();
 
@@ -1202,22 +836,10 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_v8_load)
 		return SWITCH_STATUS_FALSE;
 	}
 
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-	globals.v8platform = NULL;
-	globals.cache_expires_seconds = 0;
-	globals.performance_monitor = false;
-	globals.script_caching = switch_core_strdup(globals.pool, "disabled");
-
-	JSMain::Initialize(&globals.v8platform);
-
-	switch_core_hash_init(&globals.compiled_script_hash);
-#else
 	JSMain::Initialize();
-#endif
 
 	/* Make all "built in" modules available to load on demand */
 	v8_mod_init_built_in(FSCoreDB::GetModuleInterface());
-	v8_mod_init_built_in(FSDBH::GetModuleInterface());
 	v8_mod_init_built_in(FSCURL::GetModuleInterface());
 #ifdef HAVE_ODBC
 	/* Only add ODBC class if ODBC is available in the system */
@@ -1233,13 +855,10 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_v8_load)
 	*module_interface = switch_loadable_module_create_module_interface(pool, modname);
 	SWITCH_ADD_API(jsrun_interface, "jsrun", "run a script", launch_async, "jsrun <script> [additional_vars [...]]");
 	SWITCH_ADD_API(jsapi_interface, "jsapi", "execute an api call", jsapi_function, "jsapi <script> [additional_vars [...]]");
-	SWITCH_ADD_API(jsmon_interface, "jsmon", "toggle performance monitor", jsmon_function, "jsmon on|off");
 	SWITCH_ADD_APP(app_interface, "javascript", "Launch JS ivr", "Run a javascript ivr on a channel", v8_dp_function, "<script> [additional_vars [...]]", SAF_SUPPORT_NOMEDIA);
 	SWITCH_ADD_CHAT_APP(chat_app_interface, "javascript", "execute a js script", "execute a js script", v8_chat_function, "<script>", SCAF_NONE);
 
 	SWITCH_ADD_JSON_API(json_api_interface, "jsjson", "JSON JS Gateway", json_function, "");
-
-	load_configuration();
 
 	/* indicate that the module should continue to be loaded */
 	return SWITCH_STATUS_NOUNLOAD;
@@ -1251,14 +870,6 @@ SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_v8_shutdown)
 
 	delete globals.event_handlers;
 	switch_mutex_destroy(globals.event_mutex);
-
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-	delete globals.v8platform;
-
-	switch_core_hash_destroy(&globals.compiled_script_hash);
-	switch_mutex_destroy(globals.compiled_script_hash_mutex);
-	switch_mutex_destroy(globals.mutex);
-#endif
 
 	switch_core_hash_destroy(&module_manager.load_hash);
 	switch_core_destroy_memory_pool(&module_manager.pool);

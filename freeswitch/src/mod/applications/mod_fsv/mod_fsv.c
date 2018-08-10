@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Seven Du <dujinfang@gmail.com>
  *
@@ -38,7 +38,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_fsv_load);
 SWITCH_MODULE_DEFINITION(mod_fsv, mod_fsv_load, NULL, NULL);
 
 #define VID_BIT (1 << 31)
-#define VERSION 4202
+#define VERSION 4201
 
 struct file_header {
 	int32_t version;
@@ -47,7 +47,6 @@ struct file_header {
 	uint32_t audio_rate;
 	uint32_t audio_ptime;
 	switch_time_t created;
-	int channels;
 };
 
 struct record_helper {
@@ -62,8 +61,8 @@ static void record_video_thread(switch_core_session_t *session, void *obj)
 	switch_channel_t *channel = switch_core_session_get_channel(session);
 	switch_status_t status;
 	switch_frame_t *read_frame;
-	int bytes, j = 0;
-	
+	int bytes;
+
 	while (switch_channel_ready(channel)) {
 		status = switch_core_session_read_video_frame(session, &read_frame, SWITCH_IO_FLAG_NONE, 0);
 
@@ -73,10 +72,6 @@ static void record_video_thread(switch_core_session_t *session, void *obj)
 
 		if (switch_test_flag(read_frame, SFF_CNG)) {
 			continue;
-		}
-
-		if (j < 240 && (++j % 60) == 0) {
-			switch_core_session_request_video_refresh(session);
 		}
 
 		bytes = read_frame->packetlen | VID_BIT;
@@ -129,14 +124,14 @@ SWITCH_STANDARD_APP(record_fsv_function)
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "%s waiting for video.\n", switch_channel_get_name(channel));
 			count = 100;
 			if (!--sanity) {
-				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING, "%s timeout waiting for video.\n",
+				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING, "%s timeout waiting for video.\n", 
 								  switch_channel_get_name(channel));
 				switch_channel_set_variable(channel, SWITCH_CURRENT_APPLICATION_RESPONSE_VARIABLE, "Got timeout while waiting for video");
 				goto done;
 			}
 		}
 	}
-
+	
 	if (!switch_channel_ready(channel)) {
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_CRIT, "%s not ready.\n", switch_channel_get_name(channel));
 		switch_channel_set_variable(channel, SWITCH_CURRENT_APPLICATION_RESPONSE_VARIABLE, "Channel not ready");
@@ -155,7 +150,7 @@ SWITCH_STANDARD_APP(record_fsv_function)
 							   NULL,
 							   read_impl.samples_per_second,
 							   read_impl.microseconds_per_packet / 1000,
-							   read_impl.number_of_channels, SWITCH_CODEC_FLAG_ENCODE | SWITCH_CODEC_FLAG_DECODE,
+							   1, SWITCH_CODEC_FLAG_ENCODE | SWITCH_CODEC_FLAG_DECODE,
 							   NULL, switch_core_session_get_pool(session)) == SWITCH_STATUS_SUCCESS) {
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Audio Codec Activation Success\n");
 	} else {
@@ -169,7 +164,6 @@ SWITCH_STANDARD_APP(record_fsv_function)
 	if (switch_channel_test_flag(channel, CF_VIDEO)) {
 		struct file_header h;
 		memset(&h, 0, sizeof(h));
-
 		vid_codec = switch_core_session_get_video_read_codec(session);
 
 		h.version = VERSION;
@@ -180,7 +174,6 @@ SWITCH_STANDARD_APP(record_fsv_function)
 		}
 		h.audio_rate = read_impl.samples_per_second;
 		h.audio_ptime = read_impl.microseconds_per_packet / 1000;
-		h.channels = read_impl.number_of_channels;
 
 		if (write(fd, &h, sizeof(h)) != sizeof(h)) {
 			switch_channel_set_variable(channel, SWITCH_CURRENT_APPLICATION_RESPONSE_VARIABLE, "File write failed");
@@ -190,8 +183,7 @@ SWITCH_STANDARD_APP(record_fsv_function)
 		switch_mutex_init(&mutex, SWITCH_MUTEX_NESTED, switch_core_session_get_pool(session));
 		eh.mutex = mutex;
 		eh.fd = fd;
-		switch_core_media_start_engine_function(session, SWITCH_MEDIA_TYPE_VIDEO, record_video_thread, &eh);
-		switch_core_session_request_video_refresh(session);
+		switch_core_media_start_video_function(session, record_video_thread, &eh);
 	}
 
 
@@ -249,7 +241,7 @@ SWITCH_STANDARD_APP(record_fsv_function)
 			}
 			break;
 		}
-
+        
 		if (mutex) {
 			switch_mutex_unlock(mutex);
 		}
@@ -265,7 +257,7 @@ SWITCH_STANDARD_APP(record_fsv_function)
 		close(fd);
 	}
 
-	switch_core_media_end_engine_function(session, SWITCH_MEDIA_TYPE_VIDEO);
+	switch_core_media_end_video_function(session);
 	switch_core_session_set_read_codec(session, NULL);
 	switch_core_codec_destroy(&codec);
 
@@ -345,15 +337,13 @@ SWITCH_STANDARD_APP(play_fsv_function)
 		goto end;
 	}
 
-	if (!h.channels) h.channels = 1;
-
 	if (switch_core_codec_init(&codec,
 							   "L16",
 							   NULL,
 							   NULL,
 							   h.audio_rate,
 							   h.audio_ptime,
-							   h.channels, SWITCH_CODEC_FLAG_ENCODE | SWITCH_CODEC_FLAG_DECODE,
+							   1, SWITCH_CODEC_FLAG_ENCODE | SWITCH_CODEC_FLAG_DECODE,
 							   NULL, switch_core_session_get_pool(session)) == SWITCH_STATUS_SUCCESS) {
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Audio Codec Activation Success\n");
 	} else {
@@ -452,7 +442,7 @@ SWITCH_STANDARD_APP(play_fsv_function)
 				if (terminators && !strcasecmp(terminators, "none"))
 				{
 					terminators = NULL;
-				}
+				}								
 
 				if (terminators && strchr(terminators, dtmf.digit)) {
 
@@ -462,7 +452,7 @@ SWITCH_STANDARD_APP(play_fsv_function)
 				}
 			}
 		}
-
+		
 	}
 
 	switch_core_thread_session_end(session);
@@ -635,7 +625,7 @@ SWITCH_STANDARD_APP(play_yuv_function)
 				break;
 			}
 		}
-
+		
 		if (read_frame) {
 			memset(read_frame->data, 0, read_frame->datalen);
 			switch_core_session_write_frame(session, read_frame, SWITCH_IO_FLAG_NONE, 0);
@@ -709,7 +699,7 @@ static void decode_video_thread(switch_core_session_t *session, void *obj)
 			switch_core_session_request_video_refresh(session);
 			count = 1;
 		}
-
+			
 
 		if (frame && frame->datalen > 0) {
 			switch_core_session_write_video_frame(session, frame, SWITCH_IO_FLAG_NONE, 0);
@@ -761,7 +751,7 @@ SWITCH_STANDARD_APP(decode_video_function)
 
 	switch_channel_set_flag_recursive(channel, CF_VIDEO_DECODED_READ);
 
-	switch_core_media_start_engine_function(session, SWITCH_MEDIA_TYPE_VIDEO, decode_video_thread, &max_pictures);
+	switch_core_media_start_video_function(session, decode_video_thread, &max_pictures);
 
 	switch_ivr_play_file(session, NULL, moh, NULL);
 
@@ -772,7 +762,7 @@ SWITCH_STANDARD_APP(decode_video_function)
 	switch_channel_set_variable(channel, SWITCH_CURRENT_APPLICATION_RESPONSE_VARIABLE, "OK");
 
 
-	switch_core_media_end_engine_function(session, SWITCH_MEDIA_TYPE_VIDEO);
+	switch_core_media_end_video_function(session);
 	switch_core_session_video_reset(session);
 	switch_channel_clear_flag_recursive(channel, CF_VIDEO_DECODED_READ);
 

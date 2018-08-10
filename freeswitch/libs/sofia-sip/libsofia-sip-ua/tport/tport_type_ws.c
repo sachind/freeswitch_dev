@@ -314,26 +314,16 @@ ssize_t tport_send_stream_ws(tport_t const *self, msg_t *msg,
     if (nerror == -1) {
       int err = su_errno();
       if (su_is_blocking(err))
-		  break;
+	break;
       SU_DEBUG_3(("ws_write: %s\n", strerror(err)));
       return -1;
     }
   }
 
   if (wstp->wstp_buflen) {
-	  ssize_t wrote = 0;
-	  
 	  *(wstp->wstp_buffer + wstp->wstp_buflen) = '\0';
-	  wrote = ws_write_frame(&wstp->ws, WSOC_TEXT, wstp->wstp_buffer, wstp->wstp_buflen);
-
-	  if (wrote < 0) {
-		  int err = su_errno();
-		  SU_DEBUG_3(("ws_write_frame: %s\n", strerror(err)));
-		  size = wrote;
-		  
-	  } else {
-		  size = wstp->wstp_buflen;
-	  }
+	  ws_write_frame(&wstp->ws, WSOC_TEXT, wstp->wstp_buffer, wstp->wstp_buflen);
+	  size = wstp->wstp_buflen;
   }
 
   return size;
@@ -635,6 +625,8 @@ int tport_ws_next_timer(tport_t *self,
 		SU_DEBUG_7(("%s(%p): %s to " TPN_FORMAT "%s\n",
 					__func__, (void *)self,
 					(punt == 2 ? "Timeout establishing SSL" : "Error establishing SSL"), TPN_ARGS(self->tp_name), ""));
+
+		return -1;
 	}
 
 

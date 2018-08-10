@@ -24,9 +24,6 @@
 #define WS_BLOCK 1
 #define WS_NOBLOCK 0
 
-#define WS_INIT_SANITY 5000
-#define WS_WRITE_SANITY 200
-
 #define SHA1_HASH_SIZE 20
 static struct ws_globals_s ws_globals;
 
@@ -416,7 +413,7 @@ ssize_t ws_raw_read(wsh_t *wsh, void *data, size_t bytes, int block)
 ssize_t ws_raw_write(wsh_t *wsh, void *data, size_t bytes)
 {
 	ssize_t r;
-	int sanity = WS_WRITE_SANITY;
+	int sanity = 2000;
 	int ssl_err = 0;
 	size_t wrote = 0;
 
@@ -424,41 +421,23 @@ ssize_t ws_raw_write(wsh_t *wsh, void *data, size_t bytes)
 		do {
 			r = SSL_write(wsh->ssl, (void *)((unsigned char *)data + wrote), bytes - wrote);
 
-			if (r == 0) {
-				ssl_err = 42;
-				break;
-			}
-			
 			if (r > 0) {
 				wrote += r;
 			}
 
-			if (sanity < WS_WRITE_SANITY) {
-				int ms = 1;
-
-				if (wsh->block) {
-					if (sanity < WS_WRITE_SANITY * 3 / 4) {
-						ms = 50;
-					} else if (sanity < WS_WRITE_SANITY / 2) {
-						ms = 25;
-					}
-				}
-				ms_sleep(ms);
+			if (sanity < 2000) {
+				ms_sleep(1);
 			}
 
 			if (r == -1) {
-				ssl_err = SSL_get_error(wsh->ssl, r);
-
-				if (ssl_err != SSL_ERROR_WANT_WRITE && ssl_err != SSL_ERROR_WANT_READ) {
+				if ((ssl_err = SSL_get_error(wsh->ssl, r)) != SSL_ERROR_WANT_WRITE) {
 					break;
 				}
 				ssl_err = 0;
 			}
 
-		} while (--sanity > 0 && wrote < bytes);
+		} while (--sanity > 0 && wsh->block && wrote < bytes);
 
-		if (!sanity) ssl_err = 56;
-		
 		if (ssl_err) {
 			r = ssl_err * -1;
 		}
@@ -473,17 +452,8 @@ ssize_t ws_raw_write(wsh_t *wsh, void *data, size_t bytes)
 			wrote += r;
 		}
 
-		if (sanity < WS_WRITE_SANITY) {
-			int ms = 1;
-
-			if (wsh->block) {
-				if (sanity < WS_WRITE_SANITY * 3 / 4) {
-					ms = 50;
-				} else if (sanity < WS_WRITE_SANITY / 2) {
-					ms = 25;
-				}
-			}
-			ms_sleep(ms);
+		if (sanity < 2000) {
+			ms_sleep(1);
 		}
 
 		if (r == -1) {
@@ -492,13 +462,13 @@ ssize_t ws_raw_write(wsh_t *wsh, void *data, size_t bytes)
 			}
 		}
 
-	} while (--sanity > 0 && wrote < bytes);
+	} while (--sanity > 0 && wsh->block && wrote < bytes);
 
 	//if (r<0) {
 		//printf("wRITE FAIL: %s\n", strerror(errno));
 	//}
 
-	return r < 0 ? r : wrote;
+	return r;
 }
 
 #ifdef _MSC_VER
@@ -632,7 +602,7 @@ int ws_init(wsh_t *wsh, ws_socket_t sock, SSL_CTX *ssl_ctx, int close_sock, int 
 
 	wsh->sock = sock;
 	wsh->block = block;
-	wsh->sanity = WS_INIT_SANITY;
+	wsh->sanity = 5000;
 	wsh->ssl_ctx = ssl_ctx;
 	wsh->stay_open = stay_open;
 

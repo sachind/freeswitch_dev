@@ -1059,9 +1059,7 @@ int tport_register_secondary(tport_t *self, su_wakeup_f wakeup, int events)
     self->tp_index = i;
     self->tp_events = events;
 
-	/* Can't be added to list of opened if already closed */
-	if (!tport_is_closed(self))
-		tprb_append(&self->tp_pri->pri_open, self);
+    tprb_append(&self->tp_pri->pri_open, self);
     return 0;
   }
 
@@ -2629,9 +2627,7 @@ int tport_accept(tport_primary_t *pri, int events)
 
     SU_CANONIZE_SOCKADDR(su);
 
-    if (/* Prevent being marked as connected if already closed */
-		!tport_is_closed(self) && 
-		/* Name this transport */
+    if (/* Name this transport */
         tport_setname(self, pri->pri_protoname, ai, NULL) != -1 
 	/* Register this secondary */ 
 	&&

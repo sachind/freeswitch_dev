@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Seven Du <dujinfang@gmail.com>
  *
@@ -42,30 +42,9 @@
 #include <switch.h>
 #include <math.h>
 
-SWITCH_BEGIN_EXTERN_C
+SWITCH_BEGIN_EXTERN_C 
 
 #define SWITCH_URL_UNSAFE "\r\n #%&+:;<=>?@[\\]^`{|}\""
-
-
-static inline char *switch_get_hex_bytes(switch_byte_t *buf, switch_size_t datalen, char *new_buf, switch_size_t new_datalen)
-{
-	switch_byte_t *p, *e;
-	char *pp, *ee;
-
-	e = buf + datalen;
-	ee = new_buf + new_datalen;
-	pp = new_buf;
-
-	for (p = buf; p < e && pp < ee - 4; p++) {
-		if (snprintf(pp, 4, "%.2x ", (int)*p) < 0) {
-			return NULL;
-		}
-		pp += 3;
-	}
-	*(pp-1) = '\0';
-
-	return new_buf;
-}
 
 
 static inline uint32_t switch_round_to_step(uint32_t num, uint32_t step)
@@ -74,18 +53,18 @@ static inline uint32_t switch_round_to_step(uint32_t num, uint32_t step)
 	uint32_t x;
 
 	if (!num) return 0;
-
+	
 	r = (num % step);
 	x = num - r;
-
+	
 	if (r > step / 2) {
 		x += step;
 	}
-
+	
 	return x;
 }
 
-/* https://code.google.com/p/stringencoders/wiki/PerformanceAscii
+/* https://code.google.com/p/stringencoders/wiki/PerformanceAscii 
    http://www.azillionmonkeys.com/qed/asmexample.html
 */
 static inline uint32_t switch_toupper(uint32_t eax)
@@ -96,7 +75,7 @@ ebx = (0x7f7f7f7ful & ebx) + 0x1a1a1a1aul;
  return eax - ebx;
 }
 
-/* https://code.google.com/p/stringencoders/wiki/PerformanceAscii
+/* https://code.google.com/p/stringencoders/wiki/PerformanceAscii 
    http://www.azillionmonkeys.com/qed/asmexample.html
 */
 static inline uint32_t switch_tolower(uint32_t eax)
@@ -110,7 +89,7 @@ static inline uint32_t switch_tolower(uint32_t eax)
 
 #ifdef FS_64BIT
 
-/* https://code.google.com/p/stringencoders/wiki/PerformanceAscii
+/* https://code.google.com/p/stringencoders/wiki/PerformanceAscii 
    http://www.azillionmonkeys.com/qed/asmexample.html
 */
 static inline uint64_t switch_toupper64(uint64_t eax)
@@ -121,7 +100,7 @@ uint64_t ebx = (0x7f7f7f7f7f7f7f7full & eax) + 0x0505050505050505ull;
  return eax - ebx;
 }
 
-/* https://code.google.com/p/stringencoders/wiki/PerformanceAscii
+/* https://code.google.com/p/stringencoders/wiki/PerformanceAscii 
    http://www.azillionmonkeys.com/qed/asmexample.html
 */
 static inline uint64_t switch_tolower64(uint64_t eax)
@@ -188,7 +167,7 @@ static inline void switch_tolower_max(char *s)
 
 }
 
-#else
+#else 
 
 static inline void switch_toupper_max(char *s)
 {
@@ -215,7 +194,7 @@ static inline void switch_toupper_max(char *s)
 		c++;
 		l--;
 	}
-
+	
 }
 
 static inline void switch_tolower_max(char *s)
@@ -243,7 +222,7 @@ static inline void switch_tolower_max(char *s)
 		c++;
 		l--;
 	}
-
+	
 }
 #endif
 
@@ -316,7 +295,7 @@ static inline switch_bool_t switch_is_moh(const char *s)
 #define zset(_a, _b) if (!zstr(_b)) _a = _b
 
 
-/* find a character (find) in a string (in) and return a pointer to that point in the string where the character was found
+/* find a character (find) in a string (in) and return a pointer to that point in the string where the character was found 
    using the array (allowed) as allowed non-matching characters, when (allowed) is NULL, behaviour should be identical to strchr()
  */
 static inline char *switch_strchr_strict(const char *in, char find, const char *allowed)
@@ -345,12 +324,12 @@ static inline char *switch_strchr_strict(const char *in, char find, const char *
 					acceptable = 1;
 					break;
 				}
-
+			
 				a++;
 			}
 
 		}
-
+		
 		if (!acceptable) return NULL;
 
 		p++;
@@ -391,35 +370,8 @@ static inline int switch_string_has_escaped_data(const char *in)
 #endif
 
 SWITCH_DECLARE(switch_status_t) switch_b64_encode(unsigned char *in, switch_size_t ilen, unsigned char *out, switch_size_t olen);
-SWITCH_DECLARE(switch_size_t) switch_b64_decode(const char *in, char *out, switch_size_t olen);
+SWITCH_DECLARE(switch_size_t) switch_b64_decode(char *in, char *out, switch_size_t olen);
 SWITCH_DECLARE(char *) switch_amp_encode(char *s, char *buf, switch_size_t len);
-
-
-
-static inline char *switch_print_bits(const unsigned char *byte, char *buf, switch_size_t buflen)
-{
-	int i;
-	switch_size_t j = 0, k = 0, l = 0;
-
-	while(k < buflen) {
-		l = 0;
-		for (i = 7; i >= 0; i--) {
-			buf[j++] = (*byte & (1 << i)) ? '1' : '0';
-			if (++l % 4 == 0) {
-				buf[j++] = ' ';
-			}
-		}
-		k++;
-		byte++;
-	}
-
-	if (buf[j-1] == ' ') j--;
-	buf[j++] = '\0';
-	return buf;
-}
-
-
-
 
 static inline switch_bool_t switch_is_digit_string(const char *s)
 {
@@ -493,9 +445,9 @@ SWITCH_DECLARE(char *) switch_find_parameter(const char *str, const char *param,
 /*!
   \brief Evaluate the truthfullness of a string expression
   \param expr a string expression
-  \return true or false
+  \return true or false 
 */
-static inline switch_bool_t switch_true(const char *expr)
+static inline int switch_true(const char *expr)
 {
 	return ((expr && ( !strcasecmp(expr, "yes") ||
 					   !strcasecmp(expr, "on") ||
@@ -525,7 +477,7 @@ static inline switch_byte_t switch_true_byte(const char *expr)
 /*!
   \brief Evaluate the falsefullness of a string expression
   \param expr a string expression
-  \return true or false
+  \return true or false 
 */
 static inline int switch_false(const char *expr)
 {
@@ -727,7 +679,7 @@ static inline char *switch_sanitize_number(char *number)
 
 	while ((q = strrchr(p, '@')))
 		*q = '\0';
-
+	
 	for (i = 0; i < (int) strlen(warp); i++) {
 		while (p && (q = strchr(p, warp[i])))
 			p = q + 1;
@@ -1050,7 +1002,7 @@ static inline int32_t switch_calc_bitrate(int w, int h, int quality, double fps)
 	/* KUSH GAUGE*/
 
 	if (!fps) fps = 15;
-
+	
 	r = (int32_t)((double)(w * h * fps * (quality ? quality : 1)) * 0.07) / 1000;
 
 	if (!quality) r /= 2;
@@ -1067,7 +1019,7 @@ static inline int32_t switch_parse_bandwidth_string(const char *bwv)
 
 	if (!strcasecmp(bwv, "auto")) {
 		return -1;
-	}
+	}	
 
 	if ((bw = (float) atof(bwv))) {
 		if (bw < 0) return 0;
@@ -1084,67 +1036,12 @@ static inline int32_t switch_parse_bandwidth_string(const char *bwv)
 	return (int32_t) roundf(bw);
 }
 
-static inline uint32_t switch_parse_cpu_string(const char *cpu)
-{
-	int cpu_count = switch_core_cpu_count();
-	int ncpu = cpu_count;
-
-	if (!cpu) return 1;
-
-	if (!strcasecmp(cpu, "auto")) {
-		if (cpu_count > 4) return 4;
-		if (cpu_count <= 2) return 1;
-
-		return (uint32_t)(cpu_count / 2);
-	}
-
-	if (!strncasecmp(cpu, "cpu/", 4)) { /* cpu/2 or cpu/2/<max>  */
-		const char *has_max = cpu;
-		float divisor;
-		int max = cpu_count;
-
-		cpu +=4;
-
-		has_max = strchr(cpu, '/');
-
-		if (has_max > cpu) {
-			max = atoi(has_max + 1);
-		}
-
-		divisor = (float)atof(cpu);
-
-		if (divisor <= 0) divisor = 1;
-
-		ncpu = (int)(cpu_count / divisor);
-
-		if (ncpu <= 0) return 1;
-
-		if (ncpu > max) return (uint32_t)max;
-
-		return (uint32_t)ncpu;
-	} else if (!strcasecmp(cpu, "cpu")) {
-		ncpu = cpu_count;
-	} else {
-		ncpu = atoi(cpu);
-
-		if (cpu && strrchr(cpu, '%')) {
-			ncpu = (int) (cpu_count * ((float)ncpu / 100));
-		}
-	}
-
-	if (ncpu > cpu_count) return (uint32_t)cpu_count;
-
-	if (ncpu <= 0) return 1;
-
-	return ncpu;
-}
-
 static inline int switch_needs_url_encode(const char *s)
 {
 	const char hex[] = "0123456789ABCDEF";
 	const char *p, *e = end_of_p(s);
 
-
+	
 	for(p = s; p && *p; p++) {
 		if (*p == '%' && e-p > 1) {
 			if (strchr(hex, *(p+1)) && strchr(hex, *(p+2))) {
@@ -1186,7 +1083,7 @@ static inline void switch_separate_file_params(const char *file, char **file_por
 
 	*file_portion = NULL;
 	*params_portion = NULL;
-
+	
 	while (*file == '{') {
 		e = switch_find_end_paren(file, '{', '}');
 		file = e + 1;
@@ -1201,7 +1098,7 @@ static inline void switch_separate_file_params(const char *file, char **file_por
 	} else {
 		*file_portion = (char *)space;
 	}
-
+	
 	return;
 }
 
@@ -1393,11 +1290,7 @@ SWITCH_DECLARE(void) switch_http_parse_qs(switch_http_request_t *request, char *
 SWITCH_DECLARE(switch_status_t) switch_frame_buffer_free(switch_frame_buffer_t *fb, switch_frame_t **frameP);
 SWITCH_DECLARE(switch_status_t) switch_frame_buffer_dup(switch_frame_buffer_t *fb, switch_frame_t *orig, switch_frame_t **clone);
 SWITCH_DECLARE(switch_status_t) switch_frame_buffer_destroy(switch_frame_buffer_t **fbP);
-SWITCH_DECLARE(switch_status_t) switch_frame_buffer_create(switch_frame_buffer_t **fbP, switch_size_t qlen);
-SWITCH_DECLARE(switch_status_t) switch_frame_buffer_push(switch_frame_buffer_t *fb, void *ptr);
-SWITCH_DECLARE(switch_status_t) switch_frame_buffer_trypush(switch_frame_buffer_t *fb, void *ptr);
-SWITCH_DECLARE(switch_status_t) switch_frame_buffer_pop(switch_frame_buffer_t *fb, void **ptr);
-SWITCH_DECLARE(switch_status_t) switch_frame_buffer_trypop(switch_frame_buffer_t *fb, void **ptr);
+SWITCH_DECLARE(switch_status_t) switch_frame_buffer_create(switch_frame_buffer_t **fbP);
 
 typedef struct {
 	int64_t userms;
@@ -1407,8 +1300,6 @@ typedef struct {
 / Return used CPU time in this process for user and kernel code
 **/
 SWITCH_DECLARE(void) switch_getcputime(switch_cputime *t);
-
-SWITCH_DECLARE(char *)switch_html_strip(const char *str);
 
 SWITCH_END_EXTERN_C
 #endif

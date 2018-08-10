@@ -104,8 +104,6 @@ typedef struct private_object private_object_t;
 #define MY_EVENT_REPLACED "sofia::replaced"
 #define MY_EVENT_INTERCEPTED "sofia::intercepted"
 
-#define MY_EVENT_BYE_RESPONSE "sofia::bye_response"
-
 #define MULTICAST_EVENT "multicast::event"
 #define SOFIA_REPLACES_HEADER "_sofia_replaces_"
 #define SOFIA_CHAT_PROTO "sip"
@@ -155,12 +153,6 @@ typedef enum {
 	SOFIA_CONFIG_RESPAWN
 } sofia_config_t;
 
-typedef enum {
-	FILTER_UNKOWN = 0,
-	FILTER_BEGIN = 1,
-	FILTER_END = 2
-} filter_packet_state_t;
-
 typedef struct sofia_dispatch_event_s {
 	nua_saved_event_t event[1];
 	nua_handle_t *nh;
@@ -177,8 +169,7 @@ typedef struct sofia_dispatch_event_s {
 } sofia_dispatch_event_t;
 
 struct sofia_private {
-	char uuid_str[SWITCH_UUID_FORMATTED_LENGTH + 1];
-	char *uuid;
+	char uuid[SWITCH_UUID_FORMATTED_LENGTH + 1];
 	char gateway_name[256];
 	char auth_gateway_name[256];
 	char *call_id;
@@ -300,14 +291,11 @@ typedef enum {
 	PFLAG_AUTH_SUBSCRIPTIONS,
 	PFLAG_PROXY_REFER,
 	PFLAG_CHANNEL_XML_FETCH_ON_NIGHTMARE_TRANSFER,
-	PFLAG_MAKE_EVERY_TRANSFER_A_NIGHTMARE,
 	PFLAG_FIRE_TRANFER_EVENTS,
 	PFLAG_BLIND_AUTH_ENFORCE_RESULT,
 	PFLAG_PROXY_HOLD,
 	PFLAG_PROXY_INFO,
 	PFLAG_PROXY_MESSAGE,
-	PFLAG_FIRE_BYE_RESPONSE_EVENTS,
-	PFLAG_AUTO_INVITE_100,
 	PFLAG_UPDATE_REFRESHER,
 
 	/* No new flags below this line */
@@ -404,9 +392,6 @@ struct mod_sofia_globals {
 	uint32_t max_reg_threads;
 	time_t presence_epoch;
 	int presence_year;
-	char filter_expression[100];
-	switch_regex_t *filter_re;
-	switch_bool_t filtering;
 };
 extern struct mod_sofia_globals mod_sofia_globals;
 
@@ -798,7 +783,6 @@ struct private_object {
 	sofia_profile_t *profile;
 	char *reply_contact;
 	char *from_uri;
-	char *from_user;
 	char *to_uri;
 	char *callid;
 	char *contact_url;
@@ -842,7 +826,6 @@ struct private_object {
 	sip_contact_t *contact;
 	int q850_cause;
 	int got_bye;
-	int sent_100;
 	nua_event_t want_event;
 	switch_rtp_bug_flag_t rtp_bugs;
 	char *user_via;
@@ -995,7 +978,6 @@ void sofia_presence_event_handler(switch_event_t *event);
 
 void sofia_presence_cancel(void);
 switch_status_t config_sofia(sofia_config_t reload, char *profile_name);
-switch_status_t config_gateway(const char *profile_name, const char *gateway_name);
 void sofia_reg_auth_challenge(sofia_profile_t *profile, nua_handle_t *nh, sofia_dispatch_event_t *de,
 							  sofia_regtype_t regtype, const char *realm, int stale, long exptime);
 auth_res_t sofia_reg_parse_auth(sofia_profile_t *profile, sip_authorization_t const *authorization,

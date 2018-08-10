@@ -230,24 +230,23 @@
     }
 
     FSRTCattachMediaStream = function(element, stream) {
-        if (typeof element.srcObject !== 'undefined') {
-	    element.srcObject = stream;
+	if (element && element.id && attachMediaStream) {
+	    attachMediaStream(element, stream);
 	} else {
-	    console.error('Error attaching stream to element.');
+            if (typeof element.srcObject !== 'undefined') {
+		element.srcObject = stream;
+	    } else if (typeof element.src !== 'undefined') {
+		element.src = URL.createObjectURL(stream);
+	    } else {
+		console.error('Error attaching stream to element.');
+	    }
 	}
     }
+
     
     function onRemoteStream(self, stream) {
         if (self.options.useVideo) {
             self.options.useVideo.style.display = 'block';
-
-	    // Hacks for Mobile Safari
-	    var iOS = ['iPad', 'iPhone', 'iPod'].indexOf(navigator.platform) >= 0;
-
-	    if (iOS) {
-		self.options.useVideo.setAttribute("playsinline", true);
-		self.options.useVideo.setAttribute("controls", true);
-	    }
         }
 
         var element = self.options.useAudio;
@@ -255,9 +254,7 @@
 
 	FSRTCattachMediaStream(element, stream);
 	
-
-	
-        //self.options.useAudio.play();
+        self.options.useAudio.play();
         self.remoteStream = stream;
     }
 
@@ -339,9 +336,6 @@
 
     $.FSRTC.prototype.setMute = function(what) {
 	var self = this;
-    if (!self.localStream) {
-        return false;
-    }
 	var audioTracks = self.localStream.getAudioTracks();	
 
 	for (var i = 0, len = audioTracks.length; i < len; i++ ) {
@@ -371,9 +365,6 @@
 
     $.FSRTC.prototype.setVideoMute = function(what) {
 	var self = this;
-    if (!self.localStream) {
-        return false;
-    }
 	var videoTracks = self.localStream.getVideoTracks();	
 
 	for (var i = 0, len = videoTracks.length; i < len; i++ ) {
@@ -428,8 +419,7 @@
                 offerSDP: {
                     type: "offer",
                     sdp: self.remoteSDP
-                },
-                turnServer: self.options.turnServer
+                }
             });
 
             onStreamSuccess(self, stream);
@@ -448,7 +438,10 @@
             getUserMedia({
 		constraints: {
                     audio: false,
-                    video: { deviceId: params.useCamera },
+                    video: {
+			//mandatory: self.options.videoParams,
+			//optional: []
+                    },
 		},
 		localVideo: self.options.localVideo,
 		onsuccess: function(e) {self.options.localVideoStream = e; console.log("local video ready");},
@@ -489,7 +482,7 @@
             }
 
 	    if (obj.options.useMic !== "any") {
-		//audio.optional = [{sourceId: obj.options.useMic}];
+		//audio.optional = [{sourceId: obj.options.useMic}]
 		audio.deviceId = {exact: obj.options.useMic};
 	    }
 	}
@@ -498,10 +491,11 @@
             getUserMedia({
 		constraints: {
                     audio: false,
-                    video: { deviceId: obj.options.useCamera },
+                    video: obj.options.videoParams
+                    
 		},
 		localVideo: obj.options.localVideo,
-		onsuccess: function(e) {obj.options.localVideoStream = e; console.log("local video ready");},
+		onsuccess: function(e) {self.options.localVideoStream = e; console.log("local video ready");},
 		onerror: function(e) {console.error("local video error!");}
             });
 	}
@@ -620,7 +614,6 @@
                 },
                 constraints: self.constraints,
                 iceServers: self.options.iceServers,
-                turnServer: self.options.turnServer
             });
 
             onStreamSuccess(self, stream);
@@ -670,21 +663,17 @@
     function FSRTCPeerConnection(options) {
 	var gathering = false, done = false;
 	var config = {};
-        var default_ice = [{ urls: ['stun:stun.l.google.com:19302'] }];
-
-        if (self.options.turnServer) {
-          default_ice.push(self.options.turnServer)
-        }
+        var default_ice = {
+	    urls: ['stun:stun.l.google.com:19302']
+	};
 
         if (options.iceServers) {
             if (typeof(options.iceServers) === "boolean") {
-		config.iceServers = default_ice;
+		config.iceServers = [default_ice];
             } else {
 		config.iceServers = options.iceServers;
 	    }
         }
-
-	config.bundlePolicy = "max-compat";
 
         var peer = new window.RTCPeerConnection(config);
 
@@ -956,7 +945,7 @@
 
         function streaming(stream) {
             if (options.localVideo) {
-                options.localVideo['srcObject'] = stream;
+                options.localVideo['src'] = window.URL.createObjectURL(stream);
 		options.localVideo.style.display = 'block';
             }
 

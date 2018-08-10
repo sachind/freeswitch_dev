@@ -1,4 +1,4 @@
-/*
+/* 
  * Contributor(s):
  *
  * Piotr Gregor     <piotrgregor@rsyncme.org>
@@ -15,6 +15,11 @@
     #include <float.h>
     #define ISNAN(x) (!!(_isnan(x)))
     #define ISINF(x) (isinf(x))
+#else
+    int __isnan(double);
+	int __isinf(double);
+    #define ISNAN(x) (__isnan(x))
+    #define ISINF(x) (__isinf(x))
 #endif
 
 #include "avmd_buffer.h"
@@ -58,14 +63,14 @@ avmd_desa2_tweaked(circ_buffer_t *b, size_t i, double *amplitude) {
  we do simplified, modified for speed version : */
 
     result = n/d;
-/*    if (ISINF(result)) {
+    if (ISINF(result)) {
         *amplitude = 0.0;
         if (n < 0.0) {
             return -10.0;
         } else {
             return 10.0;
         }
-    }*/
+    }
     *amplitude = 2.0 * PSI_Xn / sqrt(PSI_Yn);
     return result;
 }

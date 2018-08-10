@@ -167,9 +167,6 @@ void *SWITCH_THREAD_FUNC conference_record_thread_run(switch_thread_t *thread, v
 	switch_size_t len = 0;
 	int flags = 0;
 	mcu_canvas_t *canvas = NULL;
-	const char *file_size = NULL;
-	const char *file_trimmed = NULL;
-	const char *file_trimmed_ms = NULL;
 
 	if (switch_thread_rwlock_tryrdlock(conference->rwlock) != SWITCH_STATUS_SUCCESS) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Read Lock Fail\n");
@@ -199,7 +196,7 @@ void *SWITCH_THREAD_FUNC conference_record_thread_run(switch_thread_t *thread, v
 	member->frame_size = SWITCH_RECOMMENDED_BUFFER_SIZE;
 	member->frame = switch_core_alloc(member->pool, member->frame_size);
 	member->mux_frame = switch_core_alloc(member->pool, member->frame_size);
-
+	
 	if (conference->canvases[0]) {
 		member->canvas_id = rec->canvas_id;
 		canvas = conference->canvases[member->canvas_id];
@@ -236,7 +233,7 @@ void *SWITCH_THREAD_FUNC conference_record_thread_run(switch_thread_t *thread, v
 		flags |= SWITCH_FILE_FLAG_VIDEO;
 
 		if (canvas) {
-			rec->path = switch_core_sprintf(rec->pool, "{video_time_audio=false,channels=%d,samplerate=%d,vw=%d,vh=%d,fps=%0.2f}%s",
+			rec->path = switch_core_sprintf(rec->pool, "{channels=%d,samplerate=%d,vw=%d,vh=%d,fps=%0.2f}%s",
 											conference->channels,
 											conference->rate,
 											canvas->width,
@@ -244,7 +241,7 @@ void *SWITCH_THREAD_FUNC conference_record_thread_run(switch_thread_t *thread, v
 											conference->video_fps.fps,
 											orig_path);
 		} else {
-			rec->path = switch_core_sprintf(rec->pool, "{video_time_audio=false,channels=%d,samplerate=%d,vw=%d,vh=%d,fps=%0.2f}%s",
+			rec->path = switch_core_sprintf(rec->pool, "{channels=%d,samplerate=%d,vw=%d,vh=%d,fps=%0.2f}%s",
 											conference->channels,
 											conference->rate,
 											conference->canvas_width,
@@ -313,8 +310,7 @@ void *SWITCH_THREAD_FUNC conference_record_thread_run(switch_thread_t *thread, v
 		switch_safe_free(vval);
 	}
 
-	switch_core_file_set_string(&member->rec->fh, SWITCH_AUDIO_COL_STR_ARTIST, 
-			!zstr(conference->recording_metadata)?conference->recording_metadata:"FreeSWITCH mod_conference Software Conference Module");
+	switch_core_file_set_string(&member->rec->fh, SWITCH_AUDIO_COL_STR_ARTIST, "FreeSWITCH mod_conference Software Conference Module");
 
 	if (test_eflag(conference, EFLAG_RECORD) &&
 		switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, CONF_EVENT_MAINT) == SWITCH_STATUS_SUCCESS) {
@@ -415,15 +411,10 @@ void *SWITCH_THREAD_FUNC conference_record_thread_run(switch_thread_t *thread, v
 	if (switch_test_flag((&member->rec->fh), SWITCH_FILE_OPEN)) {
 		switch_mutex_lock(conference->mutex);
 		switch_mutex_unlock(conference->mutex);
-		switch_core_file_pre_close(&member->rec->fh);
-		switch_core_file_get_string(&member->rec->fh, SWITCH_AUDIO_COL_STR_FILE_SIZE, &file_size);
-		switch_core_file_get_string(&member->rec->fh, SWITCH_AUDIO_COL_STR_FILE_TRIMMED, &file_trimmed);
-		switch_core_file_get_string(&member->rec->fh, SWITCH_AUDIO_COL_STR_FILE_TRIMMED_MS, &file_trimmed_ms);
 		switch_core_file_close(&member->rec->fh);
 	}
 
 	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Recording of %s Stopped\n", rec->path);
-
 	if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, CONF_EVENT_MAINT) == SWITCH_STATUS_SUCCESS) {
 		conference_event_add_data(conference, event);
 		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Action", "stop-recording");
@@ -432,15 +423,6 @@ void *SWITCH_THREAD_FUNC conference_record_thread_run(switch_thread_t *thread, v
 		switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Samples-Out", "%ld", (long) member->rec->fh.samples_out);
 		switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Samplerate", "%ld", (long) member->rec->fh.samplerate);
 		switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Milliseconds-Elapsed", "%ld", (long) member->rec->fh.samples_out / (member->rec->fh.samplerate / 1000));
-
-		if (file_trimmed_ms) {
-			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Milliseconds-File-Trimmed", "%s", file_trimmed_ms);
-			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Record-File-Duration", "%d", atoi(file_trimmed_ms)/1000);
-		}
-
-		if (file_size) switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Record-File-Size", "%s", file_size);
-		if (file_trimmed) switch_event_add_header(event, SWITCH_STACK_BOTTOM, "File-Trimmed", "%s", file_trimmed);
-
 		switch_event_fire(&event);
 	}
 

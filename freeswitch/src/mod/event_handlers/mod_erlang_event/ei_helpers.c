@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Andrew Thompson <andrew@hijacked.us>
  * Rob Charlton <rob.charlton@savageminds.com>
@@ -42,7 +42,7 @@
 
 /* Stolen from code added to ei in R12B-5.
  * Since not everyone has this version yet;
- * provide our own version.
+ * provide our own version. 
  * */
 
 #define put8(s,n) do { \
@@ -64,7 +64,6 @@ void ei_link(listener_t *listener, erlang_pid * from, erlang_pid * to)
 	char msgbuf[2048];
 	char *s;
 	int index = 0;
-	int status = SWITCH_STATUS_SUCCESS;
 	switch_socket_t *sock = NULL;
 	switch_os_sock_put(&sock, &listener->sockdes, listener->pool);
 
@@ -82,8 +81,7 @@ void ei_link(listener_t *listener, erlang_pid * from, erlang_pid * to)
 	/* sum:  542 */
 
 	switch_mutex_lock(listener->sock_mutex);
-	status = switch_socket_send(sock, msgbuf, (switch_size_t *) &index);
-	if (status != SWITCH_STATUS_SUCCESS) {
+	if (switch_socket_send(sock, msgbuf, (switch_size_t *) &index)) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "Failed to link to process on %s\n", listener->peer_nodename);
 	}
 	switch_mutex_unlock(listener->sock_mutex);
@@ -134,7 +132,7 @@ void ei_encode_switch_event_tag(ei_x_buff * ebuf, switch_event_t *event, char *t
 	ei_encode_switch_event_headers(ebuf, event);
 }
 
-/* function to make rpc call to remote node to retrieve a pid -
+/* function to make rpc call to remote node to retrieve a pid - 
    calls module:function(Ref). The response comes back as
    {rex, {Ref, Pid}}
  */

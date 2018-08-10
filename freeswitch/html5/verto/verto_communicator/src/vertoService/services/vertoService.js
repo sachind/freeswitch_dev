@@ -117,17 +117,17 @@ var updateReq;
 
 var updateVideoSize = function(ms) {
     if (!ms) ms = 500;
-
+    
     clearTimeout(updateReq);
     updateReq = setTimeout(function () {
         var videoElem = jQuery('#webcam');
         videoElem.width("");
         videoElem.height("");
-
+	
         var w = videoElem.width();
         var h = videoElem.height();
         var new_w, new_h;
-        var aspect = w / h;
+        var aspect = 1920 / 1080;
         var videoContainer = jQuery('div.video-wrapper');
         if (w > h) {
             new_w = videoContainer.width();
@@ -174,10 +174,7 @@ vertoService.service('verto', ['$rootScope', '$cookieStore', '$location', 'stora
       login: $cookieStore.get('verto_demo_login') || "1008",
       password: $cookieStore.get('verto_demo_passwd') || "1234",
       hostname: window.location.hostname,
-      wsURL: ("wss://" + window.location.hostname + ":8082"),
-      wsFallbackURL: null,
-      turnServer: null,
-      resCheckEnded: false
+      wsURL: ("wss://" + window.location.hostname + ":8082")
     };
 
     function cleanShareCall(that) {
@@ -267,17 +264,10 @@ vertoService.service('verto', ['$rootScope', '$cookieStore', '$location', 'stora
           label: 'Screen'
         }];
         data.audioDevices = [{
-          id: 'any',
-          label: 'Default Microphone'
-	},
-	{
-	    id: 'none',
-	    label: 'No Microphone'
+          id: 'none',
+          label: 'No Microphone'
         }];
-        data.speakerDevices = [{
-	    id: 'any',
-	    label: 'Default Speaker'
-	}];
+        data.speakerDevices = [];
 
         if(!storage.data.selectedShare) {
           storage.data.selectedShare = data.shareDevices[0]['id'];
@@ -430,11 +420,6 @@ vertoService.service('verto', ['$rootScope', '$cookieStore', '$location', 'stora
           }
 
           updateResolutions(resolutions['validRes']);
-          /* Do not touch video device resolution if autoBand is off and we have selected a vidQual */
-          if (!storage.data.autoBand && storage.data.vidQual) {
-            w = videoResolution[storage.data.vidQual].width;
-            h = videoResolution[storage.data.vidQual].height;
-          }
           data.instance.videoParams({
             minWidth: w,
             minHeight: h,
@@ -451,7 +436,6 @@ vertoService.service('verto', ['$rootScope', '$cookieStore', '$location', 'stora
             }
 
           });
-          data.resCheckEnded = true;
 
         } else {
           console.debug('There is no instance of verto.');
@@ -596,7 +580,6 @@ vertoService.service('verto', ['$rootScope', '$cookieStore', '$location', 'stora
         var callbacks = {
           onWSLogin: function(v, success) {
             data.connected = success;
-            $rootScope.loginFailed = !success;
             $rootScope.$emit('ws.login', success);
             console.debug('Connected to verto server:', success);
 
@@ -647,11 +630,6 @@ vertoService.service('verto', ['$rootScope', '$cookieStore', '$location', 'stora
                 break;
               case $.verto.enum.message.display:
                     $rootScope.$apply(function() {});
-                    break;
-              case $.verto.enum.message.clientReady:
-                    $rootScope.$emit('clientReady', {
-                      reattached_sessions: params.reattached_sessions,
-                    });
                     break;
               default:
                 console.warn('Got a not implemented message:', msg, dialog, params);
@@ -708,6 +686,7 @@ vertoService.service('verto', ['$rootScope', '$cookieStore', '$location', 'stora
 
           onWSClose: function(v, success) {
             console.debug('onWSClose:', success);
+
             $rootScope.$emit('ws.close', success);
           },
 
@@ -735,10 +714,9 @@ vertoService.service('verto', ['$rootScope', '$cookieStore', '$location', 'stora
             login: data.login + '@' + data.hostname,
             passwd: data.password,
             socketUrl: data.wsURL,
-            wsFallbackURL: data.wsFallbackURL,
-            turnServer: data.turnServer,
             tag: "webcam",
             ringFile: "sounds/bell_ring2.wav",
+            // TODO: Add options for this.
             audioParams: {
                 googEchoCancellation: storage.data.googEchoCancellation === undefined ? true : storage.data.googEchoCancellation,
                 googNoiseSuppression: storage.data.googNoiseSuppression === undefined ? true : storage.data.googNoiseSuppression,
@@ -851,9 +829,9 @@ vertoService.service('verto', ['$rootScope', '$cookieStore', '$location', 'stora
 
       screenshare: function(destination, callback) {
 
-
+	  
           var that = this;
-
+	  
 	  if (storage.data.selectedShare !== "screen") {
 
               console.log('share screen from device ' + storage.data.selectedShare);
@@ -882,9 +860,9 @@ vertoService.service('verto', ['$rootScope', '$cookieStore', '$location', 'stora
 		      StreamTrack.addEventListener('ended', stopSharing);
 		      // (stream.getVideoTracks()[0]).onended = stopSharing;
 		  }
-
+		  
 		  console.log("screenshare started");
-
+		  
 		  function stopSharing() {
 		      if(that.data.shareCall) {
 			  that.screenshareHangup();
@@ -892,16 +870,16 @@ vertoService.service('verto', ['$rootScope', '$cookieStore', '$location', 'stora
 		      }
 		  }
               };
-
+	      
               data.shareCall = call;
-
+	      
               console.log('shareCall', data);
-
+	      
               data.mutedMic = false;
               data.mutedVideo = false;
-
+	      
               that.refreshDevices();
-
+	      
 	      return;
 	  }
 

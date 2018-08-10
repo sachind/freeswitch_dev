@@ -3,10 +3,10 @@
 
 # Must change all of the below together
 # For a release, set revision for that tagged release as well and uncomment
-AC_INIT([freeswitch], [1.9.0], bugs@freeswitch.org)
+AC_INIT([freeswitch], [1.6.20], bugs@freeswitch.org)
 AC_SUBST(SWITCH_VERSION_MAJOR, [1])
-AC_SUBST(SWITCH_VERSION_MINOR, [9])
-AC_SUBST(SWITCH_VERSION_MICRO, [0])
+AC_SUBST(SWITCH_VERSION_MINOR, [6])
+AC_SUBST(SWITCH_VERSION_MICRO, [20])
 AC_SUBST(SWITCH_VERSION_REVISION, [])
 AC_SUBST(SWITCH_VERSION_REVISION_HUMAN, [])
 
@@ -412,12 +412,12 @@ if test "x${ax_cv_c_compiler_vendor}"  =  "xsun" ; then
 	LIBS="$LIBS -m64"
     fi
 elif test "x${ax_cv_c_compiler_vendor}" = "xclang" ; then
-    APR_ADDTO(SWITCH_AM_CFLAGS, -fPIC -ffast-math)
-    APR_ADDTO(SWITCH_AM_CXXFLAGS, -fPIC -ffast-math)
+    APR_ADDTO(SWITCH_AM_CFLAGS, -fPIC)
+    APR_ADDTO(SWITCH_AM_CXXFLAGS, -fPIC)
     APR_ADDTO(SWITCH_AM_CFLAGS, -Werror)
 elif test "x${ax_cv_c_compiler_vendor}" = "xgnu" ; then
-    APR_ADDTO(SWITCH_AM_CFLAGS, -fPIC -ffast-math)
-    APR_ADDTO(SWITCH_AM_CXXFLAGS, -fPIC -ffast-math)
+    APR_ADDTO(SWITCH_AM_CFLAGS, -fPIC)
+    APR_ADDTO(SWITCH_AM_CXXFLAGS, -fPIC)
     AC_SUBST([AM_MOD_AVMD_CXXFLAGS], [-std=gnu99])      # FS-8809, needed for MAP_POPULATE
     if test "$ac_cv_gcc_supports_w_no_unused_result" = yes; then
       APR_ADDTO(SWITCH_AM_CFLAGS, -Werror)
@@ -456,9 +456,11 @@ AC_ARG_ENABLE(address_sanitizer,
   [enable_address_sanitizer="no"])
 
 if test "${enable_address_sanitizer}" = "yes"; then
-  APR_ADDTO(CFLAGS, -fsanitize=address -fno-omit-frame-pointer)
-  APR_ADDTO(CXXFLAGS, -fsanitize=address -fno-omit-frame-pointer)
-  APR_ADDTO(LDFLAGS, -fsanitize=address)
+  if test "x${ax_cv_c_compiler_vendor}"  =  "xclang" ; then
+    APR_ADDTO(CFLAGS, -fsanitize=address -fno-omit-frame-pointer)
+    APR_ADDTO(CXXFLAGS, -fsanitize=address -fno-omit-frame-pointer)
+    APR_ADDTO(LDFLAGS, -fsanitize=address)
+  fi
 fi
 
 
@@ -496,8 +498,8 @@ if test "x${enable_visibility}" != "xno" ; then
 			)],
 
 			[AC_MSG_RESULT([yes])
-			 APR_ADDTO([SWITCH_AM_CFLAGS],   [-fvisibility=hidden -DSWITCH_API_VISIBILITY=1 -DCJSON_API_VISIBILITY=1 -DHAVE_VISIBILITY=1])
-			 APR_ADDTO([SWITCH_AM_CXXFLAGS], [-fvisibility=hidden -DSWITCH_API_VISIBILITY=1 -DCJSON_API_VISIBILITY=1 -DHAVE_VISIBILITY=1])
+			 APR_ADDTO([SWITCH_AM_CFLAGS],   [-fvisibility=hidden -DSWITCH_API_VISIBILITY=1 -DHAVE_VISIBILITY=1])
+			 APR_ADDTO([SWITCH_AM_CXXFLAGS], [-fvisibility=hidden -DSWITCH_API_VISIBILITY=1 -DHAVE_VISIBILITY=1])
 			 HAVE_VISIBILITY="yes"],
 
 			[AC_MSG_RESULT([no])]
@@ -604,6 +606,9 @@ done
 if test x"${LUA_LIBS}" = x"" ; then
    LUA_LIBS="-llua"
 fi
+#AC_ARG_ENABLE([system-lua],[AS_HELP_STRING([--enable-system-lua],[use system lib for lua])],,[enable_system_lua="no"])
+enable_system_lua=yes
+AM_CONDITIONAL([SYSTEM_LUA],[test "${enable_system_lua}" = "yes"])
 
 AC_ARG_ENABLE(srtp,
 [AC_HELP_STRING([--disable-srtp],[build without srtp support])],[enable_srtp="$enableval"],[enable_srtp="yes"])
@@ -823,14 +828,6 @@ fi
 PKG_CHECK_MODULES([MPG123], [libmpg123 >= 1.16.0],[
   AM_CONDITIONAL([HAVE_MPG123],[true])],[
   AC_MSG_RESULT([no]); AM_CONDITIONAL([HAVE_MPG123],[false])])
-
-PKG_CHECK_MODULES([AMR], [opencore-amrnb >= 0.1.0],[
-		AM_CONDITIONAL([HAVE_AMR],[true])],[
-		AC_MSG_RESULT([no]); AM_CONDITIONAL([HAVE_AMR],[false])])
-
-PKG_CHECK_MODULES([AMRWB], [opencore-amrwb >= 0.1.0 vo-amrwbenc >= 0.1.0],[
-		AM_CONDITIONAL([HAVE_AMRWB],[true])],[
-		AC_MSG_RESULT([no]); AM_CONDITIONAL([HAVE_AMRWB],[false])])
 
 AC_CHECK_LIB(apr-1, apr_pool_mutex_set, use_system_apr=yes, use_system_apr=no)
 AM_CONDITIONAL([SYSTEM_APR],[test "${use_system_apr}" = "yes"])
@@ -1077,7 +1074,7 @@ if test "x${ax_cv_c_compiler_vendor}" = "xclang" ; then
 fi
 
 # Tested and fixed lot of modules, but some are untested.  Will be added back when the core team decide it ready
-# Untested modules : mod_osp mod_soundtouch mod_sangoma_codec mod_dingaling mod_opal mod_h323 mod_khomp 
+# Untested modules : mod_osp mod_soundtouch mod_sangoma_codec mod_dingaling mod_opal mod_skypopen mod_h323 mod_khomp 
 #                    mod_unimrcp mod_cepstral mod_erlang_event mod_snmp mod_perl mod_java mod_managed
 #
 #saved_CFLAGS="$CFLAGS"
@@ -1306,14 +1303,6 @@ else
   AM_CONDITIONAL([HAVE_FREETYPE],[false])
 fi
 
-PKG_CHECK_MODULES([GUMBO], [gumbo >= 0.10.1],[
-  AM_CONDITIONAL([HAVE_GUMBO],[true])],[
-  AC_MSG_RESULT([no]); AM_CONDITIONAL([HAVE_GUMBO],[false])])
-
-PKG_CHECK_MODULES([FVAD], [libfvad >= 1.0],[
-  AM_CONDITIONAL([HAVE_FVAD],[true])],[
-  AC_MSG_RESULT([no]); AM_CONDITIONAL([HAVE_FVAD],[false])])
-
 PKG_CHECK_MODULES([SQLITE], [sqlite3 >= 3.6.20])
 PKG_CHECK_MODULES([CURL], [libcurl >= 7.19])
 PKG_CHECK_MODULES([PCRE], [libpcre >= 7.8])
@@ -1324,8 +1313,6 @@ PKG_CHECK_MODULES([YAML], [yaml-0.1 >= 0.1.4],[
 PKG_CHECK_MODULES([PORTAUDIO], [portaudio-2.0 >= 19],[
   AM_CONDITIONAL([HAVE_PORTAUDIO],[true])],[
   AC_MSG_RESULT([no]); AM_CONDITIONAL([HAVE_PORTAUDIO],[false])])
-PKG_CHECK_MODULES([LDNS], [libldns-fs >= 1.6.6],[
-  AM_CONDITIONAL([HAVE_LDNS],[true])],[
 PKG_CHECK_MODULES([LDNS], [libldns >= 1.6.6],[
   AM_CONDITIONAL([HAVE_LDNS],[true])],[
   AC_CHECK_LIB([ldns], [ldns_str2rdf_a], [LDNS_LIBS=-lldns])
@@ -1335,7 +1322,7 @@ PKG_CHECK_MODULES([LDNS], [libldns >= 1.6.6],[
     else
       AC_MSG_RESULT([no]); AM_CONDITIONAL([HAVE_LDNS],[false])
     fi],[
-    AM_CONDITIONAL([HAVE_LDNS],[true])])])])
+    AM_CONDITIONAL([HAVE_LDNS],[true])])])
 PKG_CHECK_MODULES([SNDFILE], [sndfile >= 1.0.20],[
   AM_CONDITIONAL([HAVE_SNDFILE],[true])],[
   AC_MSG_RESULT([no]); AM_CONDITIONAL([HAVE_SNDFILE],[false])])
@@ -1393,10 +1380,6 @@ PKG_CHECK_MODULES([MAGICK], [ImageMagick >= 6.0.0],[
   AM_CONDITIONAL([HAVE_MAGICK],[true])],[
   AC_MSG_RESULT([no]); AM_CONDITIONAL([HAVE_MAGICK],[false])])
 
-PKG_CHECK_MODULES([MAGICK7], [ImageMagick >= 7.0.0],[
-  AM_CONDITIONAL([HAVE_MAGICK7],[true])],[
-  AC_MSG_RESULT([no]); AM_CONDITIONAL([HAVE_MAGICK7],[false])])
-
 PKG_CHECK_MODULES([SILK], [silk >= 1.0.8],[
   AM_CONDITIONAL([HAVE_SILK],[true])],[
   AC_MSG_RESULT([no]); AM_CONDITIONAL([HAVE_SILK],[false])])
@@ -1449,19 +1432,6 @@ PKG_CHECK_MODULES([MEMCACHED], [libmemcached >= 0.31],[
 ],[
   AC_MSG_RESULT([no])
   AM_CONDITIONAL([HAVE_MEMCACHED],[false])
-])
-
-PKG_CHECK_MODULES([V8FS_STATIC], [v8fs_static >= 6.1.298],[
-  AM_CONDITIONAL([HAVE_V8FS],[true])],[
-  PKG_CHECK_MODULES([V8FS_STATIC], [v8 >= 6.1.298],[
-    AM_CONDITIONAL([HAVE_V8FS],[true])],[
-    if module_enabled mod_v8; then
-      AC_MSG_ERROR([You need to either install libv8fs-dev (>= 6.1.298) or disable mod_v8 in modules.conf])
-    else
-      AC_MSG_RESULT([no])
-      AM_CONDITIONAL([HAVE_V8FS],[false])
-    fi
-  ])
 ])
 
 PKG_CHECK_MODULES([AMQP], [librabbitmq >= 0.5.2],[
@@ -1529,7 +1499,7 @@ if test "$with_ldap" = "yes"; then
    OPENLDAP_LIBS="${OPENLDAP_LIBS} -lldap"
 fi
 
-AM_CONDITIONAL([HAVE_LDAP],[test "x$with_ldap" = "xyes"])
+AM_CONDITIONAL([HAVE_LDAP],[test "x$with_ldap" == "xyes"])
 
 AC_SUBST(OPENLDAP_LIBS)
 
@@ -1562,7 +1532,17 @@ else
 fi
 
 AX_CHECK_JAVA
-   
+
+# Option to enable static linking of Google's V8 inside mod_v8
+AC_ARG_ENABLE(static-v8,
+[AS_HELP_STRING([--enable-static-v8], [Statically link V8 into mod_v8])], [enable_static_v8="$enableval"], [enable_static_v8="no"])
+AM_CONDITIONAL([ENABLE_STATIC_V8],[test "x$enable_static_v8" != "xno"])
+
+# Option to disable parallel build of Google's V8
+AC_ARG_ENABLE(parallel-build-v8,
+[AS_HELP_STRING([--disable-parallel-build-v8], [Disable parallel build of V8])], [enable_parallel_build_v8="$enableval"], [enable_parallel_build_v8="yes"])
+AM_CONDITIONAL([ENABLE_PARALLEL_BUILD_V8],[test "x$enable_parallel_build_v8" != "xno"])
+
 AM_CONDITIONAL([HAVE_ODBC],[test "x$enable_core_odbc_support" != "xno"])
 AM_CONDITIONAL([HAVE_MYSQL],[test "$found_mysql" = "yes"])
 
@@ -1841,10 +1821,10 @@ AC_CONFIG_FILES([Makefile
 		src/mod/codecs/mod_amrwb/Makefile
 		src/mod/codecs/mod_b64/Makefile
 		src/mod/codecs/mod_bv/Makefile
-		src/mod/codecs/mod_clearmode/Makefile
 		src/mod/codecs/mod_codec2/Makefile
 		src/mod/codecs/mod_com_g729/Makefile
 		src/mod/codecs/mod_dahdi_codec/Makefile
+		src/mod/codecs/mod_clearmode/Makefile
 		src/mod/codecs/mod_g723_1/Makefile
 		src/mod/codecs/mod_g729/Makefile
 		src/mod/codecs/mod_h26x/Makefile
@@ -1873,6 +1853,7 @@ AC_CONFIG_FILES([Makefile
 		src/mod/endpoints/mod_reference/Makefile
 		src/mod/endpoints/mod_rtmp/Makefile
 		src/mod/endpoints/mod_skinny/Makefile
+		src/mod/endpoints/mod_skypopen/Makefile
 		src/mod/endpoints/mod_sofia/Makefile
 		src/mod/endpoints/mod_unicall/Makefile
 		src/mod/endpoints/mod_rtc/Makefile
@@ -1886,7 +1867,6 @@ AC_CONFIG_FILES([Makefile
 		src/mod/event_handlers/mod_event_multicast/Makefile
 		src/mod/event_handlers/mod_event_socket/Makefile
 		src/mod/event_handlers/mod_event_test/Makefile
-		src/mod/event_handlers/mod_fail2ban/Makefile
 		src/mod/event_handlers/mod_format_cdr/Makefile
 		src/mod/event_handlers/mod_json_cdr/Makefile
 		src/mod/event_handlers/mod_kazoo/Makefile
@@ -1918,7 +1898,6 @@ AC_CONFIG_FILES([Makefile
 		src/mod/loggers/mod_graylog2/Makefile
 		src/mod/loggers/mod_logfile/Makefile
 		src/mod/loggers/mod_syslog/Makefile
-		src/mod/loggers/mod_raven/Makefile
 		src/mod/say/mod_say_de/Makefile
 		src/mod/say/mod_say_en/Makefile
 		src/mod/say/mod_say_es/Makefile
@@ -1946,7 +1925,6 @@ AC_CONFIG_FILES([Makefile
 		src/mod/xml_int/mod_xml_rpc/Makefile
 		src/mod/xml_int/mod_xml_scgi/Makefile
 		src/mod/applications/mod_av/Makefile
-		src/mod/applications/mod_video_filter/Makefile
 		src/include/switch_am_config.h
 		build/getsounds.sh
 		build/getlib.sh
@@ -1968,6 +1946,8 @@ AM_CONDITIONAL(ISMAC, [test `uname -s` = Darwin])
 AM_CONDITIONAL(ISFREEBSD, [test `uname -s` = FreeBSD])
 AM_CONDITIONAL(IS64BITLINUX, [test `uname -m` = x86_64])
 
+AM_CONDITIONAL(HAVE_AMR, [ test -d ${switch_srcdir}/libs/amr ])
+AM_CONDITIONAL(HAVE_AMRWB, [ test -d ${switch_srcdir}/libs/amrwb ])
 AM_CONDITIONAL(HAVE_G723_1, [ test -d ${switch_srcdir}/libs/libg723_1 ])
 AM_CONDITIONAL(HAVE_G729, [ test -d ${switch_srcdir}/libs/libg729 ])
 
@@ -2021,6 +2001,7 @@ AC_CONFIG_SUBDIRS([libs/libdingaling])
 AC_CONFIG_SUBDIRS([libs/sofia-sip])
 AC_CONFIG_SUBDIRS([libs/freetdm])
 AC_CONFIG_SUBDIRS([libs/unimrcp])
+AC_CONFIG_SUBDIRS([libs/tiff-4.0.2])
 AC_CONFIG_SUBDIRS([libs/spandsp])
 if test "x${enable_zrtp}" = "xyes"; then
    AC_CONFIG_SUBDIRS([libs/libzrtp])

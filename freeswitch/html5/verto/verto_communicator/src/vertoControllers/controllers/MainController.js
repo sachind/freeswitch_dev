@@ -10,12 +10,6 @@
       $rootScope.dtmfHistory = { value: '' };
       $rootScope.onKeydownDtmfEnabled = true;
 
-      $.verto.haltClosure = function() {
-        if (verto.data.callState == 'active') {
-          return true;
-        }
-      };
-
       if (storage.data.language && storage.data.language !== 'browser') {
         $translate.use(storage.data.language);
       } else {
@@ -98,7 +92,7 @@
             }
 
             if (redirect && storage.data.preview) {
-              $location.path('/loading');
+              $location.path('/preview');
             } else if (redirect) {
               $location.path('/dialpad');
             }
@@ -283,7 +277,6 @@
         }
         angular.element('#wrapper').toggleClass('toggled');
         $rootScope.chatStatus = angular.element('#wrapper').hasClass('toggled');
-        updateVideoSize();
       };
 
       $rootScope.openChat = function() {

@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Marc Olivier Chouinard <mochouinard at moctel dot com>
  * Emmanuel Schmidbauer <e.schmidbauer@gmail.com>
  *
@@ -194,7 +194,7 @@ switch_cache_db_handle_t *directory_get_db_handle(void)
 {
 	switch_cache_db_handle_t *dbh = NULL;
 	char *dsn;
-
+	
 	if (!zstr(globals.odbc_dsn)) {
 		dsn = globals.odbc_dsn;
 	} else {
@@ -204,7 +204,7 @@ switch_cache_db_handle_t *directory_get_db_handle(void)
 	if (switch_cache_db_get_db_handle_dsn(&dbh, dsn) != SWITCH_STATUS_SUCCESS) {
 		dbh = NULL;
 	}
-
+	
 	return dbh;
 
 }
@@ -255,7 +255,6 @@ struct search_params {
 	char transfer_to[255];
 	char domain[255];
 	char profile[255];
-	char vm_profile[255];
 	search_by_t search_by;
 	int timeout;
 	int try_again;
@@ -662,7 +661,7 @@ static switch_status_t populate_database(switch_core_session_t *session, dir_pro
 							sql = generate_sql_entry_for_user(session, ux, profile->use_number_alias);
 							switch_xml_free(ux);
 						}
-
+						
 					} else {
 						sql = generate_sql_entry_for_user(session, ut, profile->use_number_alias);
 					}
@@ -678,7 +677,7 @@ static switch_status_t populate_database(switch_core_session_t *session, dir_pro
 							sql = NULL;
 						}
 					}
-
+					
 					if (++count >= 100) {
 						count = 0;
 						sql = switch_mprintf("BEGIN;%s;COMMIT;", sqlvalues);
@@ -752,7 +751,7 @@ static switch_status_t listen_entry(switch_core_session_t *session, dir_profile_
 		switch_stream_handle_t stream = { 0 };
 		SWITCH_STANDARD_STREAM(stream);
 
-		cmd = switch_core_session_sprintf(session, "%s/%s@%s|name_path", cbt->params->vm_profile, cbt->extension, cbt->params->domain);
+		cmd = switch_core_session_sprintf(session, "%s/%s@%s|name_path", cbt->params->profile, cbt->extension, cbt->params->domain);
 		switch_api_execute("vm_prefs", cmd, session, &stream);
 		if (strncmp("-ERR", stream.data, 4)) {
 			switch_copy_string(recorded_name, (char *) stream.data, sizeof(recorded_name));
@@ -957,7 +956,6 @@ SWITCH_STANDARD_APP(directory_function)
 	char *argv[6] = { 0 };
 	char *mydata = NULL;
 	const char *profile_name = NULL;
-	const char *vm_profile_name = NULL;
 	const char *domain_name = NULL;
 	const char *context_name = NULL;
 	const char *dialplan_name = NULL;
@@ -1015,17 +1013,12 @@ SWITCH_STANDARD_APP(directory_function)
 
 	populate_database(session, profile, domain_name);
 
-	if (!(vm_profile_name = switch_channel_get_variable(channel, "directory_voicemail_profile"))) {
-		vm_profile_name = profile_name;
-	}
-
 	memset(&s_param, 0, sizeof(s_param));
 	s_param.try_again = 1;
 	switch_copy_string(s_param.profile, profile_name, 255);
-	switch_copy_string(s_param.vm_profile, vm_profile_name, 255);
 	switch_copy_string(s_param.domain, domain_name, 255);
 
-	if (!(search_by = switch_channel_get_variable(channel, "directory_search_order"))) {
+	if (!(search_by = switch_channel_get_variable(channel, "directory_search_order"))) { 
 		search_by = profile->search_order;
 	}
 

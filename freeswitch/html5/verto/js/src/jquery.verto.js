@@ -110,8 +110,6 @@
             login: verto.options.login,
             passwd: verto.options.passwd,
             socketUrl: verto.options.socketUrl,
-            wsFallbackURL: verto.options.wsFallbackURL,
-            turnServer: verto.options.turnServer,
 	    loginParams: verto.options.loginParams,
 	    userVariables: verto.options.userVariables,
             sessid: verto.sessid,
@@ -459,10 +457,6 @@
             return;
         }
 
-        if (args["useCamera"]) {
-            verto.options.deviceParams["useCamera"] = args["useCamera"];
-        }
-
         var dialog = new $.verto.dialog($.verto.enum.direction.outbound, this, args);
 
         dialog.invite();
@@ -610,11 +604,6 @@
                 //console.error(data);
                 console.debug("MESSAGE from: " + data.params.msg.from, data.params.msg.body);
 
-                break;
-
-            case 'verto.clientReady':
-                verto.callbacks.onMessage(verto, null, $.verto.enum.message.clientReady, data.params);
-                console.debug("CLIENT READY", data.params);
                 break;
 
             default:
@@ -1258,14 +1247,6 @@
             }
         });
 
-        verto.subscribe(conf.params.laData.infoChannel, {
-            handler: function(v, e) {
-                if (typeof(conf.params.infoCallback) === "function") {
-                    conf.params.infoCallback(v,e);
-                }
-            }
-        });
-
         verto.subscribe(conf.params.laData.chatChannel, {
             handler: function(v, e) {
                 if (typeof(conf.params.chatCallback) === "function") {
@@ -1301,10 +1282,6 @@
 
         if (conf.params.laData.chatChannel) {
             conf.verto.unsubscribe(conf.params.laData.chatChannel);
-        }
-
-        if (conf.params.laData.infoChannel) {
-            conf.verto.unsubscribe(conf.params.laData.infoChannel);
         }
     };
 
@@ -1707,14 +1684,6 @@
 
         //$(".jsDataTable").width(confMan.params.hasVid ? "900px" : "800px");
 
-        verto.subscribe(confMan.params.laData.infoChannel, {
-            handler: function(v, e) {
-                if (typeof(confMan.params.infoCallback) === "function") {
-                    confMan.params.infoCallback(v,e);
-                }
-            }
-        });
-
 	verto.subscribe(confMan.params.laData.chatChannel, {
 	    handler: function(v, e) {
 		if (typeof(confMan.params.chatCallback) === "function") {
@@ -2078,11 +2047,10 @@
             videoParams: dialog.params.videoParams,
             audioParams: verto.options.audioParams,
             iceServers: verto.options.iceServers,
-            screenShare: dialog.screenShare,
-            useCamera: dialog.useCamera,
-            useMic: dialog.useMic,
-            useSpeak: dialog.useSpeak,
-            turnServer: verto.options.turnServer
+	    screenShare: dialog.screenShare,
+	    useCamera: dialog.useCamera,
+	    useMic: dialog.useMic,
+	    useSpeak: dialog.useSpeak
         });
 
         dialog.rtc.verto = dialog.verto;
@@ -2106,18 +2074,12 @@
         obj.dialogParams = {};
 
         for (var i in dialog.params) {
-	    if (i == "sdp" && method != "verto.invite" && method != "verto.attach") {
+            if (i == "sdp" && method != "verto.invite" && method != "verto.attach") {
                 continue;
-	    }
-	    
-	    if ((obj.noDialogParams && i != "callID")) {
-		continue;
-	    }
+            }
 
-	    obj.dialogParams[i] = dialog.params[i];
+            obj.dialogParams[i] = dialog.params[i];
         }
-	
-	delete obj.noDialogParams;
 
         dialog.verto.rpcClient.call(method, obj,
 
@@ -2205,6 +2167,14 @@
 
         dialog.lastState = dialog.state;
         dialog.state = state;
+
+        if (!dialog.causeCode) {
+            dialog.causeCode = 16;
+        }
+
+        if (!dialog.cause) {
+            dialog.cause = "NORMAL CLEARING";
+        }
 
         if (dialog.callbacks.onDialogState) {
             dialog.callbacks.onDialogState(this);
@@ -2325,10 +2295,6 @@
             }
         }
 
-	if (!dialog.cause && !dialog.causeCode) {
-	    dialog.cause = "NORMAL_CLEARING";
-	}
-
         if (dialog.state.val >= $.verto.enum.state.new.val && dialog.state.val < $.verto.enum.state.hangup.val) {
             dialog.setState($.verto.enum.state.hangup);
         } else if (dialog.state.val < $.verto.enum.state.destroy) {
@@ -2417,43 +2383,12 @@
         }
     };
 
-    $.verto.dialog.prototype.rtt = function(obj) {
-        var dialog = this;
-	var pobj = {};
-
-	if (!obj) {
-	    return false;
-	}
-
-	pobj.code = obj.code;
-	pobj.chars = obj.chars;
-
-
-        if (pobj.chars || pobj.code) {
-            dialog.sendMethod("verto.info", {
-                txt: obj,
-		noDialogParams: true
-            });
-        }
-    };
-
     $.verto.dialog.prototype.transfer = function(dest, params) {
         var dialog = this;
         if (dest) {
             dialog.sendMethod("verto.modify", {
                 action: "transfer",
                 destination: dest,
-                params: params
-            });
-        }
-    };
-
-    $.verto.dialog.prototype.replace = function(replaceCallID, params) {
-        var dialog = this;
-        if (replaceCallID) {
-            dialog.sendMethod("verto.modify", {
-                action: "replace",
-                replaceCallID: replaceCallID,
                 params: params
             });
         }
@@ -2594,8 +2529,7 @@
     $.verto.dialog.prototype.handleInfo = function(params) {
         var dialog = this;
 
-        dialog.sendMessage($.verto.enum.message.info, params);
-
+        dialog.sendMessage($.verto.enum.message.info, params.msg);
     };
 
     $.verto.dialog.prototype.handleDisplay = function(params) {
@@ -2705,7 +2639,7 @@
 
     $.verto.enum.state = $.verto.ENUM("new requesting trying recovering ringing answering early active held hangup destroy purge");
     $.verto.enum.direction = $.verto.ENUM("inbound outbound");
-    $.verto.enum.message = $.verto.ENUM("display info pvtEvent clientReady");
+    $.verto.enum.message = $.verto.ENUM("display info pvtEvent");
 
     $.verto.enum = Object.freeze($.verto.enum);
 
@@ -2717,9 +2651,6 @@
 	for (var f in $.verto.unloadJobs) {
 	    $.verto.unloadJobs[f]();
 	}
-
-        if ($.verto.haltClosure)
-          return $.verto.haltClosure();
 
         for (var i in $.verto.saved) {
             var verto = $.verto.saved[i];

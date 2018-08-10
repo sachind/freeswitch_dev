@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  *
  *
@@ -64,7 +64,7 @@ SWITCH_DECLARE(switch_status_t) switch_resample_perform_create(switch_audio_resa
 	switch_zmalloc(resampler, sizeof(*resampler));
 
 	if (!channels) channels = 1;
-
+	
 	resampler->resampler = speex_resampler_init(channels, from_rate, to_rate, quality, &err);
 
 	if (!resampler->resampler) {
@@ -80,7 +80,7 @@ SWITCH_DECLARE(switch_status_t) switch_resample_perform_create(switch_audio_resa
 	resampler->factor = (lto_rate / lfrom_rate);
 	resampler->rfactor = (lfrom_rate / lto_rate);
 	resampler->channels = channels;
-
+	
 	//resampler->to_size = resample_buffer(to_rate, from_rate, (uint32_t) to_size);
 
 	resampler->to_size = switch_resample_calc_buffer_size(resampler->to_rate, resampler->from_rate, to_size) / 2;
@@ -99,7 +99,7 @@ SWITCH_DECLARE(uint32_t) switch_resample_process(switch_audio_resampler_t *resam
 		resampler->to = realloc(resampler->to, resampler->to_size * sizeof(int16_t) * resampler->channels);
 		switch_assert(resampler->to);
 	}
-
+	
 	resampler->to_len = resampler->to_size;
 	speex_resampler_process_interleaved_int(resampler->resampler, src, &srclen, resampler->to, &resampler->to_len);
 	return resampler->to_len;
@@ -217,11 +217,11 @@ SWITCH_DECLARE(void) switch_generate_sln_silence(int16_t *data, uint32_t samples
 			sum_rnd += rnd2;
 		}
 
-		s = (int16_t) ((int16_t) sum_rnd / (int) divisor);
+		s = (int16_t) ((int16_t) sum_rnd / (int) divisor);		
 
 		for (j = 0; j < channels; j++) {
 			*data = s;
-			data++;
+			data++;			
 		}
 
 
@@ -299,12 +299,12 @@ SWITCH_DECLARE(void) switch_mux_channels(int16_t *data, switch_size_t samples, u
 		}
 
 		for (i = 0; i < samples; i++) {
-			for (j = 0; j < channels; j++) {
+			for (j = 0; j < channels; j++) { 
 				data[k++] = data[i + samples];
 			}
 		}
 
-#else
+#else 
 		uint32_t k = 0, len = samples * 2 * orig_channels;
 		int16_t *orig = NULL;
 
@@ -312,11 +312,11 @@ SWITCH_DECLARE(void) switch_mux_channels(int16_t *data, switch_size_t samples, u
 		memcpy(orig, data, len);
 
 		for (i = 0; i < samples; i++) {
-			for (j = 0; j < channels; j++) {
+			for (j = 0; j < channels; j++) { 
 				data[k++] = orig[i];
 			}
 		}
-
+		
 		free(orig);
 #endif
 
@@ -340,9 +340,9 @@ SWITCH_DECLARE(void) switch_change_sln_volume_granular(int16_t *data, uint32_t s
 	} else {
 		chart = neg;
 	}
-
+	
 	i = abs(vol) - 1;
-
+	
 	switch_assert(i < 13);
 
 	newrate = chart[i];
@@ -379,9 +379,9 @@ SWITCH_DECLARE(void) switch_change_sln_volume(int16_t *data, uint32_t samples, i
 	} else {
 		chart = neg;
 	}
-
+	
 	i = abs(vol) - 1;
-
+	
 	switch_assert(i < 4);
 
 	newrate = chart[i];
@@ -398,167 +398,6 @@ SWITCH_DECLARE(void) switch_change_sln_volume(int16_t *data, uint32_t samples, i
 		}
 	}
 }
-
-struct switch_agc_s {
-	switch_memory_pool_t *pool;
-	uint32_t energy_avg;
-	uint32_t margin;
-	uint32_t change_factor;
-	char *token;
-	int vol;
-	uint32_t score;
-	uint32_t score_count;
-	uint32_t score_sum;
-	uint32_t score_avg;
-	uint32_t score_over;
-	uint32_t score_under;
-	uint32_t period_len;
-	uint32_t low_energy_point;
-};
-
-
-SWITCH_DECLARE(void) switch_agc_set(switch_agc_t *agc, uint32_t energy_avg, 
-											   uint32_t low_energy_point, uint32_t margin, uint32_t change_factor, uint32_t period_len)
-{
-	agc->energy_avg = energy_avg;
-	agc->margin = margin;
-	agc->change_factor = change_factor;
-	agc->period_len = period_len;
-	agc->low_energy_point = low_energy_point;
-}
-
-SWITCH_DECLARE(switch_status_t) switch_agc_create(switch_agc_t **agcP, uint32_t energy_avg, 
-												  uint32_t low_energy_point, uint32_t margin, uint32_t change_factor, uint32_t period_len)
-{
-	switch_agc_t *agc;
-	switch_memory_pool_t *pool;
-	char id[80] = "";
-
-	switch_assert(agcP);
-
-	switch_core_new_memory_pool(&pool);
-	
-	agc = switch_core_alloc(pool, sizeof(*agc));
-	agc->pool = pool;
-
-	switch_agc_set(agc, energy_avg, low_energy_point, margin, change_factor, period_len);
-
-
-	switch_snprintf(id, sizeof(id), "%p", (void *)agc);
-	switch_agc_set_token(agc, id);
-
-	*agcP = agc;
-
-	return SWITCH_STATUS_SUCCESS;
-}
-
-SWITCH_DECLARE(void) switch_agc_destroy(switch_agc_t **agcP)
-{
-	switch_agc_t *agc;
-
-	switch_assert(agcP);
-
-	agc = *agcP;
-	*agcP = NULL;
-
-	if (agc) {
-		switch_memory_pool_t *pool = agc->pool;
-		switch_core_destroy_memory_pool(&pool);
-	}
-}
-
-SWITCH_DECLARE(void) switch_agc_set_energy_avg(switch_agc_t *agc, uint32_t energy_avg)
-{
-	switch_assert(agc);
-
-	agc->energy_avg = energy_avg;
-}
-
-SWITCH_DECLARE(void) switch_agc_set_energy_low(switch_agc_t *agc, uint32_t low_energy_point)
-{
-	switch_assert(agc);
-
-	agc->low_energy_point = low_energy_point;
-}
-
-SWITCH_DECLARE(void) switch_agc_set_token(switch_agc_t *agc, const char *token)
-{
-	agc->token = switch_core_strdup(agc->pool, token);
-}
-
-SWITCH_DECLARE(switch_status_t) switch_agc_feed(switch_agc_t *agc, int16_t *data, uint32_t samples, uint32_t channels)
-{
-	
-	if (!channels) channels = 1;
-
-	if (agc->vol) {
-		switch_change_sln_volume_granular(data, samples * channels, agc->vol);
-	}
-							
-	if (agc->energy_avg) {
-		uint32_t energy = 0;
-		int i;
-
-		for (i = 0; i < samples * channels; i++) {
-			energy += abs(data[i]);
-		}
-
-		agc->score = energy / samples * channels;
-		agc->score_sum += agc->score;
-		agc->score_count++;
-								
-		if (agc->score_count > agc->period_len) {
-									
-			agc->score_avg = (int)((double)agc->score_sum / agc->score_count);
-			agc->score_count = 0;
-			agc->score_sum = 0;
-									
-			if (agc->score_avg > agc->energy_avg) {
-				if (agc->score_avg - agc->energy_avg > agc->margin) {
-					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "[%s] OVER++ SCORE AVG: %d ENERGY AVG: %d MARGIN: %d\n", 
-									  agc->token, agc->score_avg, agc->energy_avg, agc->margin);
-					agc->score_over++;
-				}
-			} else {
-				agc->score_over = 0;
-			}
-
-			if (agc->score_avg < agc->low_energy_point) {
-				agc->score_under = agc->change_factor + 1;
-				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "[%s] BELOW LOW POINT, SCORE AVG: %d ENERGY AVG: %d MARGIN: %d\n", 
-								  agc->token, agc->score_avg, agc->energy_avg, agc->margin);
-			} else if (((agc->score_avg < agc->energy_avg) && (agc->energy_avg - agc->score_avg > agc->margin))) {
-				//&& (agc->vol < 0 || agc->score_avg > agc->low_energy_point)) {
-				
-				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "[%s] UNDER++ SCORE AVG: %d ENERGY AVG: %d MARGIN: %d\n", 
-								  agc->token, agc->score_avg, agc->energy_avg, agc->margin);
-				agc->score_under++;
-			} else {
-				agc->score_under = 0;
-			}
-
-			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "[%s] AVG %d over: %d under: %d\n", 
-							  agc->token, agc->score_avg, agc->score_over, agc->score_under);
-
-			if (agc->score_over > agc->change_factor) {
-				agc->vol--;
-				switch_normalize_volume_granular(agc->vol);
-				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "[%s] VOL DOWN %d\n", agc->token, agc->vol);
-				//agc->score_over = 0;
-			} else if (agc->score_under > agc->change_factor) {
-				agc->vol++;
-				switch_normalize_volume_granular(agc->vol);
-				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "[%s] VOL UP %d\n", agc->token, agc->vol);
-				//agc->score_under = 0;
-			}
-
-		}
-
-	}
-
-	return SWITCH_STATUS_SUCCESS;
-}
-
 
 /* For Emacs:
  * Local Variables:

@@ -208,7 +208,7 @@ int fs_switch_ivr_collect_digits_count(switch_core_session_t *session,
   switch_core_session_t *peer_session,
   switch_input_callback_function_t dtmf_callback,
   void *session_data,
-  void *peer_session_data)
+  void *peer_session_data)  
   {
   switch_status_t status;
 
@@ -226,7 +226,7 @@ int fs_switch_ivr_originate(switch_core_session_t *session, switch_core_session_
 
 	switch_channel_t *caller_channel;
 	switch_core_session_t *peer_session;
-	unsigned int timelimit = SWITCH_DEFAULT_TIMEOUT;
+	unsigned int timelimit = 60;
 	char *var;
 	switch_call_cause_t cause = SWITCH_CAUSE_NORMAL_CLEARING;
 

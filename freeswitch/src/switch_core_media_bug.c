@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Michael Jerris <mike@jerris.com>
  * Paul D. Tinsley <pdt at jackhammer.org>
@@ -41,11 +41,6 @@ static void switch_core_media_bug_destroy(switch_media_bug_t **bug)
 	switch_media_bug_t *bp = *bug;
 
 	*bug = NULL;
-
-	if (bp->text_buffer) {
-		switch_buffer_destroy(&bp->text_buffer);
-		switch_safe_free(bp->text_framedata);
-	}
 
 	switch_img_free(&bp->spy_img[0]);
 	switch_img_free(&bp->spy_img[1]);
@@ -130,11 +125,6 @@ SWITCH_DECLARE(void) switch_core_media_bug_get_media_params(switch_media_bug_t *
 SWITCH_DECLARE(switch_core_session_t *) switch_core_media_bug_get_session(switch_media_bug_t *bug)
 {
 	return bug->session;
-}
-
-SWITCH_DECLARE(const char *) switch_core_media_bug_get_text(switch_media_bug_t *bug)
-{
-	return bug->text_framedata;
 }
 
 SWITCH_DECLARE(switch_frame_t *) switch_core_media_bug_get_video_ping_frame(switch_media_bug_t *bug)
@@ -252,10 +242,10 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_read(switch_media_bug_t *b
 	}
 
 	if ((!bug->raw_read_buffer && (!bug->raw_write_buffer || !switch_test_flag(bug, SMBF_WRITE_STREAM)))) {
-		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(switch_core_media_bug_get_session(bug)), SWITCH_LOG_ERROR,
+		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(switch_core_media_bug_get_session(bug)), SWITCH_LOG_ERROR, 
 				"%s Buffer Error (raw_read_buffer=%p, raw_write_buffer=%p, read=%s, write=%s)\n",
 			        switch_channel_get_name(bug->session->channel),
-				(void *)bug->raw_read_buffer, (void *)bug->raw_write_buffer,
+				(void *)bug->raw_read_buffer, (void *)bug->raw_write_buffer, 
 				switch_test_flag(bug, SMBF_READ_STREAM) ? "yes" : "no",
 				switch_test_flag(bug, SMBF_WRITE_STREAM) ? "yes" : "no");
 		return SWITCH_STATUS_FALSE;
@@ -285,7 +275,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_read(switch_media_bug_t *b
 	} else {
 		uint32_t frame_size;
 		switch_codec_implementation_t read_impl = { 0 };
-
+		
 		switch_core_session_get_read_impl(bug->session, &read_impl);
 		frame_size = read_impl.decoded_bytes_per_packet;
 		bug->record_frame_size = frame_size;
@@ -334,7 +324,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_read(switch_media_bug_t *b
 	if (do_write && do_write > SWITCH_RECOMMENDED_BUFFER_SIZE) {
 		do_write = 1280;
 	}
-
+	
 	if (do_read) {
 		switch_mutex_lock(bug->read_mutex);
 		frame->datalen = (uint32_t) switch_buffer_read(bug->raw_read_buffer, frame->data, do_read);
@@ -403,7 +393,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_read(switch_media_bug_t *b
 	} else {
 		for (x = 0; x < blen; x++) {
 			int32_t w = 0, r = 0, z = 0;
-
+			
 			if (x < rlen) {
 				r = (int32_t) * (fp + x);
 			}
@@ -411,7 +401,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_read(switch_media_bug_t *b
 			if (x < wlen) {
 				w = (int32_t) * (dp + x);
 			}
-
+			
 			z = w + r;
 
 			if (z > SWITCH_SMAX || z < SWITCH_SMIN) {
@@ -475,7 +465,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_patch_spy_frame(switch_med
 			switch_queue_create(&bug->spy_video_queue[i], SWITCH_CORE_QUEUE_LEN, switch_core_session_get_pool(bug->session));
 		}
 	}
-
+	
 	spy_q = bug->spy_video_queue[rw];
 
 	while(switch_queue_size(spy_q) > 0) {
@@ -505,7 +495,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_patch_spy_frame(switch_med
 				if ((float)w/h == aspect169) {
 					if ((float)bug->spy_img[rw]->d_w / bug->spy_img[rw]->d_h == aspect169) {
 						spy_tmp = switch_img_copy_rect(bug->spy_img[rw], bug->spy_img[rw]->d_w / 4, 0, bug->spy_img[rw]->d_w / 2, bug->spy_img[rw]->d_h);
-
+						
 					} else {
 						switch_img_copy(bug->spy_img[rw], &spy_tmp);
 					}
@@ -551,10 +541,10 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_patch_spy_frame(switch_med
 
 				spyw = (int) (float)w * scaler;
 				spyh = (int) (float)h * scaler;
-
+				
 				if (bug->spy_img[rw]->d_w != spyw || bug->spy_img[rw]->d_h != spyh) {
 					switch_image_t *tmp_img = NULL;
-
+					
 					switch_img_scale(bug->spy_img[rw], &tmp_img, spyw, spyh);
 					switch_img_free(&bug->spy_img[rw]);
 					bug->spy_img[rw] = tmp_img;
@@ -570,6 +560,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_patch_spy_frame(switch_med
 
 	return SWITCH_STATUS_FALSE;
 }
+
 
 static int flush_video_queue(switch_queue_t *q, int min)
 {
@@ -793,8 +784,8 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_add(switch_core_session_t 
 														  const char *function,
 														  const char *target,
 														  switch_media_bug_callback_t callback,
-														  void *user_data, time_t stop_time,
-														  switch_media_bug_flag_t flags,
+														  void *user_data, time_t stop_time, 
+														  switch_media_bug_flag_t flags, 
 														  switch_media_bug_t **new_bug)
 {
 	switch_media_bug_t *bug, *bp;
@@ -811,12 +802,12 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_add(switch_core_session_t 
 				if (!zstr(bp->function) && !strcasecmp(function, bp->function)) {
 					punt = 1;
 					break;
-				}
+				} 
 			}
 			switch_thread_rwlock_unlock(session->bug_rwlock);
 		}
 	}
-
+	
 	if (punt) {
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Only one bug of this type allowed!\n");
 		return SWITCH_STATUS_GENERR;
@@ -884,7 +875,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_add(switch_core_session_t 
 	if (target) {
 		bug->target = switch_core_session_strdup(session, target);
 	}
-
+	
 	bug->stop_time = stop_time;
 	bytes = bug->read_impl.decoded_bytes_per_packet;
 
@@ -917,14 +908,6 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_add(switch_core_session_t 
 		switch_queue_create(&bug->spy_video_queue[1], SWITCH_CORE_QUEUE_LEN, switch_core_session_get_pool(session));
 	}
 
-	if ((switch_test_flag(bug, SMBF_READ_TEXT_STREAM))) {
-
-		switch_buffer_create_dynamic(&bug->text_buffer, 512, 1024, 0);
-		switch_zmalloc(bug->text_framedata, 1024);
-		bug->text_framesize = 1024;
-
-	}
-
 	if ((switch_test_flag(bug, SMBF_READ_VIDEO_STREAM) || switch_test_flag(bug, SMBF_WRITE_VIDEO_STREAM))) {
 		switch_memory_pool_t *pool = switch_core_session_get_pool(session);
 
@@ -937,7 +920,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_add(switch_core_session_t 
 		}
 	}
 
-
+	
 	if (bug->callback) {
 		switch_bool_t result = bug->callback(bug, bug->user_data, SWITCH_ABC_TYPE_INIT);
 		if (result == SWITCH_FALSE) {
@@ -955,7 +938,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_add(switch_core_session_t 
 		switch_memory_pool_t *pool = switch_core_session_get_pool(session);
 		switch_threadattr_create(&thd_attr, pool);
 		switch_threadattr_stacksize_set(thd_attr, SWITCH_THREAD_STACKSIZE);
-		switch_thread_create(&bug->video_bug_thread, thd_attr, video_bug_thread, bug, pool);
+		switch_thread_create(&bug->video_bug_thread, thd_attr, video_bug_thread, bug, pool);		
 
 	}
 
@@ -967,7 +950,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_add(switch_core_session_t 
 	for(bp = session->bugs; bp; bp = bp->next) {
 		if (bp->ready && !switch_test_flag(bp, SMBF_TAP_NATIVE_READ) && !switch_test_flag(bp, SMBF_TAP_NATIVE_WRITE)) {
 			tap_only = 0;
-		}
+		}	
 	}
 
 	switch_thread_rwlock_unlock(session->bug_rwlock);
@@ -1026,7 +1009,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_transfer_recordings(switch
 		const char *save_stereo = switch_channel_get_variable(new_channel, "record_stereo");
 		const char *orig_stereo = switch_channel_get_variable(orig_channel, "record_stereo");
 		const char *new_stereo = orig_stereo;
-
+		
 		switch_thread_rwlock_wrlock(orig_session->bug_rwlock);
 		switch_channel_set_variable(new_channel, "RECORD_MIN_SEC", "0");
 		switch_channel_set_variable(new_channel, "record_append", "true");
@@ -1060,7 +1043,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_transfer_recordings(switch
 }
 
 
-SWITCH_DECLARE(switch_status_t) switch_core_media_bug_transfer_callback(switch_core_session_t *orig_session, switch_core_session_t *new_session,
+SWITCH_DECLARE(switch_status_t) switch_core_media_bug_transfer_callback(switch_core_session_t *orig_session, switch_core_session_t *new_session, 
 																		switch_media_bug_callback_t callback, void * (*user_data_dup_func) (switch_core_session_t *, void *))
 {
 	switch_media_bug_t *new_bug = NULL, *cur = NULL, *bp = NULL, *last = NULL;
@@ -1071,7 +1054,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_transfer_callback(switch_c
 	while (bp) {
 		cur = bp;
 		bp = bp->next;
-
+		
 		if (cur->callback == callback) {
 			if (last) {
 				last->next = cur->next;
@@ -1182,7 +1165,7 @@ SWITCH_DECLARE(uint32_t) switch_core_media_bug_patch_video(switch_core_session_t
 	return x;
 }
 
-SWITCH_DECLARE(switch_status_t) switch_core_media_bug_exec_all(switch_core_session_t *orig_session,
+SWITCH_DECLARE(switch_status_t) switch_core_media_bug_exec_all(switch_core_session_t *orig_session, 
 															   const char *function, switch_media_bug_exec_cb_t cb, void *user_data)
 {
 	switch_media_bug_t *bp;
@@ -1214,12 +1197,12 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_enumerate(switch_core_sess
 		switch_thread_rwlock_rdlock(session->bug_rwlock);
 		for (bp = session->bugs; bp; bp = bp->next) {
 			int thread_locked = (bp->thread_id && bp->thread_id == switch_thread_self());
-			stream->write_function(stream,
+			stream->write_function(stream, 
 								   " <media-bug>\n"
 								   "  <function>%s</function>\n"
 								   "  <target>%s</target>\n"
 								   "  <thread-locked>%d</thread-locked>\n"
-								   " </media-bug>\n",
+								   " </media-bug>\n", 
 								   bp->function, bp->target, thread_locked);
 
 		}
@@ -1227,7 +1210,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_enumerate(switch_core_sess
 	}
 
 	stream->write_function(stream, "</media-bugs>\n");
-
+	
 	return SWITCH_STATUS_SUCCESS;
 }
 
@@ -1248,7 +1231,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_remove_all_function(switch
 				last = bp;
 				continue;
 			}
-
+			
 			if (!zstr(function) && strcmp(bp->function, function)) {
 				last = bp;
 				continue;
@@ -1307,7 +1290,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_close(switch_media_bug_t *
 		if (bp->read_video_queue) {
 			switch_queue_push(bp->read_video_queue, NULL);
 		}
-
+			
 		if (bp->write_video_queue) {
 			switch_queue_push(bp->write_video_queue, NULL);
 		}
@@ -1359,10 +1342,10 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_remove(switch_core_session
 		for(bp2 = session->bugs; bp2; bp2 = bp2->next) {
 			if (bp2->ready && !switch_test_flag(bp2, SMBF_TAP_NATIVE_READ) && !switch_test_flag(bp2, SMBF_TAP_NATIVE_WRITE)) {
 				tap_only = 0;
-			}
+			}	
 		}
 	}
-
+	
 	if (tap_only) {
 		switch_set_flag(session, SSF_MEDIA_BUG_TAP_ONLY);
 	} else {
@@ -1374,7 +1357,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_bug_remove(switch_core_session
 	if (bp) {
 		status = switch_core_media_bug_close(&bp, SWITCH_TRUE);
 	}
-
+	
 	return status;
 }
 
@@ -1416,7 +1399,7 @@ SWITCH_DECLARE(uint32_t) switch_core_media_bug_prune(switch_core_session_t *sess
 		ttl++;
 		goto top;
 	}
-
+	
 	return ttl;
 }
 

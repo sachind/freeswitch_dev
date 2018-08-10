@@ -29,9 +29,6 @@
  */
 
 #include "javascript.hpp"
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-#include "mod_v8.h"
-#endif
 
 #ifdef V8_ENABLE_DEBUGGING
 #include <v8-debug.h>
@@ -44,9 +41,6 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-#include <switch.h>
-#endif
 
 using namespace std;
 using namespace v8;
@@ -103,15 +97,8 @@ const string JSMain::LoadFileToString(const string& filename)
 
 JSMain::JSMain(void)
 {
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-	Isolate::CreateParams params;
-	params.array_buffer_allocator =
-		v8::ArrayBuffer::Allocator::NewDefaultAllocator();
-	isolate = Isolate::New(params);
-#else
 	isolate = Isolate::New();
-#endif
-
+	
 	extenderClasses = new vector<const js_class_definition_t *>();
 	extenderFunctions = new vector<js_function_t *>();
 	extenderInstances = new vector<registered_instance_t*>();
@@ -149,11 +136,7 @@ JSMain::~JSMain(void)
 	extenderClasses->clear();
 	extenderFunctions->clear();
 
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-	if (isolate) {
-#else
 	if (!Isolate::GetCurrent()) {
-#endif
 		enteredIsolate = true;
 		isolate->Enter();
 	}
@@ -195,7 +178,7 @@ const string JSMain::GetExceptionInfo(Isolate* isolate, TryCatch* try_catch)
 		ostringstream ss;
 
 		ss << filename_string << ":" << linenum << ": " << exception_string << "\r\n";
-
+		
 		// Print line of source code.
 		String::Utf8Value sourceline(message->GetSourceLine());
 		const char *sourceline_string = js_safe_str(*sourceline);
@@ -209,7 +192,7 @@ const string JSMain::GetExceptionInfo(Isolate* isolate, TryCatch* try_catch)
 			ss << " ";
 		}
 
-		int32_t end = message->GetEndColumn(isolate->GetCurrentContext()).FromMaybe(0);
+		int end = message->GetEndColumn();
 
 		for (int i = start; i < end; i++) {
 			ss << "^";
@@ -231,26 +214,16 @@ void JSMain::Include(const v8::FunctionCallbackInfo<Value>& args)
 		string js_file = LoadFileToString(js_safe_str(*str));
 
 		if (js_file.length() > 0) {
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-			MaybeLocal<v8::Script> script;
-			LoadScript(&script, args.GetIsolate(), js_file.c_str(), js_safe_str(*str));
-
-			if (script.IsEmpty()) {
-				args.GetReturnValue().Set(false);
-			}
-			else {
-				args.GetReturnValue().Set(script.ToLocalChecked()->Run());
-			}
-#else
 			Handle<String> source = String::NewFromUtf8(args.GetIsolate(), js_file.c_str());
+
 			Handle<Script> script = Script::Compile(source, args[i]);
+
 			args.GetReturnValue().Set(script->Run());
-#endif
 
 			return;
 		}
 	}
-
+	
 	args.GetReturnValue().Set(Undefined(args.GetIsolate()));
 }
 
@@ -260,7 +233,7 @@ void JSMain::Log(const v8::FunctionCallbackInfo<Value>& args)
 	String::Utf8Value str(args[0]);
 
 	printf("%s\r\n", js_safe_str(*str));
-
+	
 	args.GetReturnValue().Set(Undefined(args.GetIsolate()));
 }
 
@@ -292,7 +265,7 @@ const string JSMain::ExecuteString(const string& scriptData, const string& fileN
 
 			isolate->SetData(0, this);
 
-			Handle<ObjectTemplate> global = ObjectTemplate::New(isolate);
+			Handle<ObjectTemplate> global = ObjectTemplate::New();
 			global->Set(String::NewFromUtf8(isolate, "include"), FunctionTemplate::New(isolate, Include));
 			global->Set(String::NewFromUtf8(isolate, "require"), FunctionTemplate::New(isolate, Include));
 			global->Set(String::NewFromUtf8(isolate, "log"), FunctionTemplate::New(isolate, Log));
@@ -323,34 +296,20 @@ const string JSMain::ExecuteString(const string& scriptData, const string& fileN
 				inst->obj->RegisterInstance(isolate, inst->name, inst->auto_destroy);
 			}
 
-			TryCatch try_catch(isolate);
-
-			// Compile the source code.
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-			// Compile the source code.
-			MaybeLocal<v8::Script> script;
-			LoadScript(&script, isolate, scriptData.c_str(), fileName.c_str());
-#else
 			// Create a string containing the JavaScript source code.
 			Handle<String> source = String::NewFromUtf8(isolate, scriptData.c_str());
+
+			TryCatch try_catch;
+
+			// Compile the source code.
 			Handle<Script> script = Script::Compile(source, Local<Value>::New(isolate, String::NewFromUtf8(isolate, fileName.c_str())));
-#endif
 
 			if (try_catch.HasCaught()) {
 				res = JSMain::GetExceptionInfo(isolate, &try_catch);
 				isError = true;
 			} else {
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-				// Run the script
-				Handle<Value> result;
-
-				if (!script.IsEmpty()) {
-				    result = script.ToLocalChecked()->Run();
-				}
-#else
 				// Run the script
 				Handle<Value> result = script->Run();
-#endif
 				if (try_catch.HasCaught()) {
 					res = JSMain::GetExceptionInfo(isolate, &try_catch);
 					isError = true;
@@ -381,7 +340,7 @@ const string JSMain::ExecuteString(const string& scriptData, const string& fileN
 #endif
 	}
 	//isolate->Exit();
-
+	
 	if (resultIsError) {
 		*resultIsError = isError;
 	}
@@ -445,37 +404,18 @@ Isolate *JSMain::GetIsolate()
 	return isolate;
 }
 
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-void JSMain::Initialize(v8::Platform **platform)
-{
-	bool res = V8::InitializeICUDefaultLocation(SWITCH_GLOBAL_dirs.mod_dir);
-	V8::InitializeExternalStartupData(SWITCH_GLOBAL_dirs.mod_dir);
-
-	*platform = v8::platform::CreateDefaultPlatform();
-	V8::InitializePlatform(*platform);
-	V8::Initialize();
-}
-#else
 void JSMain::Initialize()
 {
 	V8::InitializeICU(); // Initialize();
 }
-#endif
 
 void JSMain::Dispose()
 {
 	// Make sure to cleanup properly!
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-	v8::Isolate::GetCurrent()->LowMemoryNotification();
-	while (!v8::Isolate::GetCurrent()->IdleNotificationDeadline(0.500)) {}
-	V8::Dispose();
-	V8::ShutdownPlatform();
-#else
 	V8::LowMemoryNotification();
 	while (!V8::IdleNotification()) {}
+
 	V8::Dispose();
-#endif
-	
 }
 
 const vector<const js_class_definition_t *>& JSMain::GetExtenderClasses() const
@@ -583,7 +523,7 @@ void JSMain::ExitScript(Isolate *isolate, const char *msg)
 		js->forcedTerminationScriptFile = GetStackInfo(isolate, &js->forcedTerminationLineNumber);
 	}
 
-	isolate->TerminateExecution();
+	V8::TerminateExecution(isolate);
 }
 
 char *JSMain::GetStackInfo(Isolate *isolate, int *lineNumber)

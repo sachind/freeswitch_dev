@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Cesar Cepeda <cesar@auronix.com>
  * Emmanuel Schmidbauer <e.schmidbauer@gmail.com>
@@ -93,10 +93,6 @@ struct local_stream_source {
 	char *timer_name;
 	local_stream_context_t *context_list;
 	int total;
-	int vol;
-	switch_agc_t *agc;
-	int energy_avg;
-	int energy_low;
 	int first;
 	switch_dir_t *dir_handle;
 	switch_mutex_t *mutex;
@@ -159,7 +155,7 @@ switch_status_t list_streams_full(const char *line, const char *cursor, switch_c
 	const void *vvar;
 	switch_console_callback_match_t *my_matches = NULL;
 	switch_status_t status = SWITCH_STATUS_FALSE;
-
+	
 	switch_mutex_lock(globals.mutex);
 	for (hi = switch_core_hash_first(globals.source_hash); hi; hi = switch_core_hash_next(&hi)) {
 		switch_core_hash_this(hi, &vvar, NULL, &val);
@@ -172,12 +168,12 @@ switch_status_t list_streams_full(const char *line, const char *cursor, switch_c
 		switch_console_push_match(&my_matches, (const char *) vvar);
 	}
 	switch_mutex_unlock(globals.mutex);
-
+	
 	if (my_matches) {
 		*matches = my_matches;
 		status = SWITCH_STATUS_SUCCESS;
 	}
-
+	
 	return status;
 }
 
@@ -269,7 +265,7 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 
 	while (RUNNING && !source->stopped && source->ready) {
 		const char *fname;
-
+		
 		if (source->dir_handle) {
 			switch_dir_close(source->dir_handle);
 			source->dir_handle = NULL;
@@ -373,7 +369,7 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 
 			if ((p = strrchr(tmp_buf, '/'))) {
 				*p++ = '\0';
-				switch_snprintf(png_buf, sizeof(png_buf), "%s/art/%s.png", tmp_buf, p);
+				switch_snprintf(png_buf, sizeof(png_buf), "%s/art/%s.png", tmp_buf, p);				
 				if (switch_file_exists(png_buf, temp_pool) == SWITCH_STATUS_SUCCESS) {
 					source->cover_art = switch_img_read_png(png_buf, SWITCH_IMG_FMT_I420);
 				}
@@ -382,24 +378,24 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 			source->serno++;
 			switch_safe_free(source->banner_txt);
 			title = artist = NULL;
-
+			
 			switch_core_file_get_string(&fh, SWITCH_AUDIO_COL_STR_ARTIST, &artist);
 			switch_core_file_get_string(&fh, SWITCH_AUDIO_COL_STR_TITLE, &title);
 
 			if (!title && !artist) {
 				char *e, *p, *args[3];
 				int argc;
-
+					
 				switch_set_string(tmp_space, path_buf);
 				p = tmp_space;
-
+					
 				while((e = strchr(p, '/'))) {
 					*e = '\0';
 					p = e+1;
 				}
 
 				argc = switch_split(p, '-', args);
-
+					
 				if (argc > 0) {
 					while(*args[0] == ' ') {
 						args[0]++;
@@ -408,7 +404,7 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 					while(end_of(args[0]) == ' ') {
 						end_of(args[0]) = '\0';
 					}
-
+					
 					artist = args[0];
 
 					if (argc > 1) {
@@ -430,17 +426,17 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 					artist = NULL;
 				}
 			}
-
+			
 			if (title && (source->cover_art || switch_core_file_has_video(&fh, SWITCH_TRUE))) {
 				const char *format = "#cccccc:#333333:FreeSans.ttf:3%:";
-
+				
 				if (artist) {
 					source->banner_txt = switch_mprintf("%s%s (%s)", format, title, artist);
 				} else {
 					source->banner_txt = switch_mprintf("%s%s", format, title);
 				}
 			}
-
+			
 
 			while (RUNNING && !source->stopped) {
 				int is_open;
@@ -448,13 +444,13 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 
 				switch_core_timer_next(&source->timer);
 				olen = source->samples;
-
+				
 				if (source->chime_total) {
 
 					if (source->chime_counter > 0) {
 						source->chime_counter -= (int32_t)source->samples;
 					}
-
+					
 					if (!switch_test_flag((&source->chime_fh), SWITCH_FILE_OPEN) && source->chime_counter <= 0) {
 						char *val;
 
@@ -497,19 +493,19 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 					source->hup = 0;
 					if (is_open) {
 						is_open = 0;
-
+						
 						switch_core_file_close(use_fh);
 						flush_video_queue(source->video_q);
 						switch_buffer_zero(audio_buffer);
 						if (use_fh == &source->chime_fh) {
 							source->chime_counter = source->rate * source->chime_freq;
 							switch_core_file_close(&fh);
-							use_fh = &fh;
+							use_fh = &fh;							
 						}
 						goto retry;
 					}
 				}
-
+				
 				if (is_open) {
 					int svr = 0;
 
@@ -550,7 +546,7 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 						}
 						olen = source->samples;
 					}
-
+					
 					switch_assert(source->abuflen >= olen * 2 * source->channels);
 
 					if (switch_core_file_read(use_fh, source->abuf, &olen) != SWITCH_STATUS_SUCCESS || !olen) {
@@ -575,15 +571,8 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 								goto retry;
 							}
 						}
-
+						
 						if (source->total) {
-
-							if (source->energy_avg && source->agc) {
-								switch_agc_feed(source->agc, (int16_t *)source->abuf, olen, source->channels);
-							} else if (source->vol) {
-								switch_change_sln_volume_granular((int16_t *)source->abuf, olen * source->channels, source->vol);
-							}
-
 							switch_buffer_write(audio_buffer, source->abuf, olen * 2 * source->channels);
 						} else {
 							switch_buffer_zero(audio_buffer);
@@ -604,17 +593,17 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 					void *pop;
 					uint32_t bused = 0;
 					local_stream_context_t *cp = NULL;
-
+				
 					switch_assert(source->abuflen <= source->prebuf);
 					used = switch_buffer_read(audio_buffer, dist_buf, source->abuflen);
-
+					
 					switch_mutex_lock(source->mutex);
 					for (cp = source->context_list; cp && RUNNING; cp = cp->next) {
 
 						if (!cp->ready) {
 							continue;
 						}
-
+						
 						switch_mutex_lock(cp->audio_mutex);
 
 						if (switch_test_flag(cp->handle, SWITCH_FILE_OPEN)) {
@@ -627,7 +616,7 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 						bused = (uint32_t)switch_buffer_inuse(cp->audio_buffer);
 
 						if (bused > source->samples * 768) {
-							switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "Flushing Stream Handle Buffer [%s() %s:%d] size: %u samples: %ld\n",
+							switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "Flushing Stream Handle Buffer [%s() %s:%d] size: %u samples: %ld\n", 
 											  cp->func, cp->file, cp->line, bused, (long)source->samples);
 							switch_buffer_zero(cp->audio_buffer);
 						} else {
@@ -637,7 +626,7 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 					}
 					switch_mutex_unlock(source->mutex);
 
-
+						
 					while (switch_queue_trypop(source->video_q, &pop) == SWITCH_STATUS_SUCCESS) {
 						switch_image_t *img;
 						switch_image_t *imgcp = NULL;
@@ -683,7 +672,7 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 											}
 										}
 									}
-								}
+								}						
 								switch_img_free(&img);
 							}
 						}
@@ -733,21 +722,6 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 									switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING,
 													  "Interval must be multiple of 10 and less than %d, Using default of 20\n", SWITCH_MAX_INTERVAL);
 								}
-							} else if (!strcasecmp(var, "volume")) {
-								source->vol = atoi(val);
-								switch_normalize_volume_granular(source->vol);
-							} else if (!strcasecmp(var, "auto-volume")) {
-								source->energy_avg = atoi(val);
-
-								if (!(source->energy_avg > -1 && source->energy_avg <= 20000)) {
-									source->energy_avg = 0;
-								}
-							} else if (!strcasecmp(var, "auto-volume-low-point")) {
-								source->energy_low = atoi(val);
-								
-								if (!(source->energy_low > -1 && source->energy_avg <= 20000)) {
-									source->energy_low = 0;
-								}
 							}
 							if (source->chime_max) {
 								source->chime_max *= source->rate;
@@ -787,7 +761,7 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 	}
 
 	switch_safe_free(source->banner_txt);
-
+	
 	if (switch_test_flag((&fh), SWITCH_FILE_OPEN)) {
 		switch_core_file_close(&fh);
 	}
@@ -803,10 +777,6 @@ static void *SWITCH_THREAD_FUNC read_stream_thread(switch_thread_t *thread, void
 	switch_mutex_lock(globals.mutex);
 	switch_core_hash_delete(globals.source_hash, source->name);
 	switch_mutex_unlock(globals.mutex);
-
-	if (source->agc) {
-		switch_agc_destroy(&source->agc);
-	}
 
 	switch_thread_rwlock_wrlock(source->rwlock);
 	switch_thread_rwlock_unlock(source->rwlock);
@@ -880,7 +850,7 @@ static switch_status_t local_stream_file_open(switch_file_handle_t *handle, cons
 	//}
 
 	pool = handle->memory_pool;
-
+	
 	if ((context = switch_core_alloc(pool, sizeof(*context))) == 0) {
 		abort();
 	}
@@ -907,7 +877,7 @@ static switch_status_t local_stream_file_open(switch_file_handle_t *handle, cons
 		goto end;
 	}
 
-	if (!switch_core_has_video() ||
+	if (!switch_core_has_video() || 
 		(switch_test_flag(handle, SWITCH_FILE_FLAG_VIDEO) && !source->has_video && !source->blank_img && !source->cover_art && !source->banner_txt)) {
 		switch_clear_flag_locked(handle, SWITCH_FILE_FLAG_VIDEO);
 	}
@@ -954,21 +924,21 @@ static switch_status_t local_stream_file_close(switch_file_handle_t *handle)
 				last->next = cp->next;
 			} else {
 				source->context_list = cp->next;
-			}
+			}			
 			break;
 		}
 		last = cp;
 	}
 
 	switch_mutex_lock(context->audio_mutex);
-
+	
 	if (source->has_video) {
 		flush_video_queue(context->video_q);
 		switch_queue_trypush(context->video_q, NULL);
 		switch_queue_interrupt_all(context->video_q);
 		flush_video_queue(context->video_q);
 	}
-
+							
 	source->total--;
 
 	switch_img_free(&context->banner_img);
@@ -1009,7 +979,7 @@ static switch_status_t local_stream_file_read_video(switch_file_handle_t *handle
 
 			if (src_img) {
 				switch_image_t *img = NULL;
-
+			
 				if (context->sent_png && --context->sent_png > 0) {
 					return SWITCH_STATUS_BREAK;
 				}
@@ -1047,7 +1017,7 @@ static switch_status_t local_stream_file_read_video(switch_file_handle_t *handle
 	if (!(context->ready && context->source->ready)) {
 		return SWITCH_STATUS_FALSE;
 	}
-
+	
 	while (!(flags & SVR_BLOCK) && switch_queue_size(context->video_q) < buf_qsize) {
 		return SWITCH_STATUS_BREAK;
 	}
@@ -1083,7 +1053,7 @@ static switch_status_t local_stream_file_read_video(switch_file_handle_t *handle
 		switch_img_fill(frame->img, 0, 0, frame->img->d_w, frame->img->d_h, &bgcolor);
 		context->pop_count--;
 	}
-
+	
 	now = switch_micro_time_now();
 
 	if (context->banner_img) {
@@ -1098,7 +1068,7 @@ static switch_status_t local_stream_file_read_video(switch_file_handle_t *handle
 		context->serno = context->source->serno;
 		context->pop_count = 5;
 	}
-
+	
 	if (context->source->banner_txt) {
 		if ((!context->banner_timeout || context->banner_timeout >= now)) {
 			if (context->newres) {
@@ -1121,12 +1091,12 @@ static switch_status_t local_stream_file_read_video(switch_file_handle_t *handle
 		switch_img_overlay(frame->img, context->banner_img, 0, frame->img->d_h - context->banner_img->d_h, context->source->text_opacity);
 	}
 
-	if (frame->img && context->source->logo_img &&
+	if (frame->img && context->source->logo_img && 
 		(context->source->logo_always || context->banner_img) && frame->img->d_w >= context->source->logo_img->d_w) {
 		int x = 0, y = 0;
-
+		
 		switch_img_find_position(context->source->logo_pos,
-								 frame->img->d_w, frame->img->d_h,
+								 frame->img->d_w, frame->img->d_h, 
 								 context->source->logo_img->d_w, context->source->logo_img->d_h,
 								 &x, &y);
 
@@ -1150,7 +1120,7 @@ static switch_status_t local_stream_file_read(switch_file_handle_t *handle, void
 		*len = 0;
 		return SWITCH_STATUS_FALSE;
 	}
-
+	
 	if (context->source->has_video)  {
 		if (!switch_test_flag(handle, SWITCH_FILE_FLAG_VIDEO)) {
 			switch_set_flag_locked(handle, SWITCH_FILE_FLAG_VIDEO);
@@ -1168,7 +1138,7 @@ static switch_status_t local_stream_file_read(switch_file_handle_t *handle, void
 		*len = bytes / 2 / context->source->channels;
 	} else {
 		size_t blank;
-
+		
 		switch_assert(handle->samplerate <= 48000);
 		switch_assert(handle->real_channels <= 2);
 
@@ -1282,21 +1252,6 @@ static void launch_thread(const char *name, const char *path, switch_xml_t direc
 			if (source->text_opacity < 0 && source->text_opacity > 100) {
 				source->text_opacity = 0;
 			}
-		} else if (!strcasecmp(var, "volume")) {
-			source->vol = atoi(val);
-			switch_normalize_volume_granular(source->vol);
-		} else if (!strcasecmp(var, "auto-volume")) {
-			source->energy_avg = atoi(val);
-			
-			if (!(source->energy_avg > -1 && source->energy_avg <= 20000)) {
-				source->energy_avg = 0;
-			}
-		} else if (!strcasecmp(var, "auto-volume-low-point")) {
-			source->energy_low = atoi(val);
-			
-			if (!(source->energy_low > -1 && source->energy_avg <= 20000)) {
-				source->energy_low = 0;
-			}
 		}
 	}
 
@@ -1380,53 +1335,6 @@ SWITCH_STANDARD_API(local_stream_function)
 			stream->write_function(stream, "+OK hup stream: %s", source->name);
 			switch_thread_rwlock_unlock(source->rwlock);
 		}
-	} else if (!strcasecmp(argv[0], "vol") && local_stream_name) {
-		if ((source = get_source(local_stream_name))) {
-			if (argv[2]) {
-				if (!strncasecmp(argv[2], "auto:", 5)) {
-					char *p;
-					source->energy_avg = atoi(argv[2] + 5);
-
-					if ((p = strchr(argv[2] + 5, ':'))) {
-						int tmp = 0;
-						p++;
-						tmp = atoi(p);
-
-						if ((tmp > -1 && tmp <= 20000)) {
-							source->energy_low = tmp;
-						} else {
-							stream->write_function(stream, "-ERR invalid auto-volume low-energy level for stream: %s\n", source->name);
-						}
-					}
-					
-					if (!(source->energy_avg > -1 && source->energy_avg <= 20000)) {
-						source->energy_avg = 0;
-						stream->write_function(stream, "-ERR invalid auto-volume level for stream: %s\n", source->name);
-					} else {
-						if (!source->agc) {
-							switch_agc_create(&source->agc, source->energy_avg, source->energy_low, 500, 3, (1000 / source->interval) * 2);
-						} else {
-							switch_agc_set_energy_avg(source->agc, source->energy_avg);
-							switch_agc_set_energy_low(source->agc, source->energy_low);
-						}
-					}
-				} else {
-					source->vol = atoi(argv[2]);
-					switch_normalize_volume_granular(source->vol);
-					if (source->agc) {
-						switch_agc_destroy(&source->agc);
-					}
-					source->energy_avg = 0;
-				}
-			}
-
-			if (source->energy_avg) {
-				stream->write_function(stream, "+OK Auto-Volume stream: %s is %d/%d", source->name, source->energy_avg, source->energy_low);
-			} else {
-				stream->write_function(stream, "+OK vol stream: %s is %d", source->name, source->vol);
-			}
-			switch_thread_rwlock_unlock(source->rwlock);
-		}
 	} else if (!strcasecmp(argv[0], "stop") && local_stream_name) {
 		if ((source = get_source(local_stream_name))) {
 			source->stopped = 1;
@@ -1455,7 +1363,7 @@ SWITCH_STANDARD_API(local_stream_function)
 				stream->write_function(stream, "+OK stream: %s", local_stream_name);
 			}
 		}
-
+		
 	} else if (!strcasecmp(argv[0], "show")) {
 		switch_hash_index_t *hi;
 		const void *var;
@@ -1512,12 +1420,12 @@ SWITCH_STANDARD_API(local_stream_function)
 			}
 		}
 	}
-
+	
 	goto done;
-
+	
  usage:
 	stream->write_function(stream, "-USAGE: %s\n", LOCAL_STREAM_SYNTAX);
-
+	
   done:
 
 	switch_safe_free(mycmd);
@@ -1538,7 +1446,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_local_stream_load)
 	if (!launch_streams(NULL)) {
 		return SWITCH_STATUS_GENERR;
 	}
-
+	
 	*module_interface = switch_loadable_module_create_module_interface(pool, modname);
 	file_interface = switch_loadable_module_create_interface(*module_interface, SWITCH_FILE_INTERFACE);
 	file_interface->interface_name = modname;

@@ -46,17 +46,14 @@ avoid_mods=(
   codecs/mod_ilbc
   codecs/mod_openh264
   codecs/mod_siren
-  codecs/mod_sangoma_codec
   codecs/mod_skel_codec
   endpoints/mod_gsmopen
   endpoints/mod_h323
   endpoints/mod_khomp
   endpoints/mod_opal
   endpoints/mod_reference
-  endpoints/mod_skypopen
   endpoints/mod_unicall
   event_handlers/mod_smpp
-  event_handlers/mod_cdr_pg_csv
   formats/mod_webm
   sdk/autotools
   xml_int/mod_xml_ldap
@@ -82,17 +79,17 @@ avoid_mods_wheezy=(
 )
 avoid_mods_trusty=(
   event_handlers/mod_amqp
-  loggers/mod_raven
+  codecs/mod_sangoma_codec
 )
 avoid_mods_utopic=(
   directories/mod_ldap
-  loggers/mod_raven
+  codecs/mod_sangoma_codec
 )
 avoid_mods_xenial=(
   event_handlers/mod_ldap
   event_handlers/mod_amqp
+  codecs/mod_sangoma_codec
   asr_tts/mod_flite
-  loggers/mod_raven
 )
 manual_pkgs=(
 freeswitch-all
@@ -301,7 +298,7 @@ print_source_control () {
 Source: freeswitch
 Section: comm
 Priority: optional
-Maintainer: FreeSWITCH Solutions, LLC <support@freeswitch.com>
+Maintainer: Travis Cross <tc@traviscross.com>
 Build-Depends:
 # for debian
  ${debhelper_dep},
@@ -313,13 +310,12 @@ Build-Depends:
  libpcre3-dev,
  libedit-dev (>= 2.11),
  libsqlite3-dev,
- libtiff5-dev,
  wget, pkg-config,
  yasm,
 # core codecs
  libogg-dev, libspeex-dev, libspeexdsp-dev,
 # configure options
- libssl1.0-dev | libssl-dev, unixodbc-dev, libpq-dev,
+ libssl-dev, unixodbc-dev, libpq-dev,
  libncurses5-dev, libjpeg62-turbo-dev | libjpeg-turbo8-dev | libjpeg62-dev | libjpeg8-dev,
  python-dev, python-all-dev, python-support (>= 0.90) | dh-python, erlang-dev,
 # documentation
@@ -343,7 +339,7 @@ print_core_control () {
 cat <<EOF
 Package: freeswitch-all
 Architecture: any
-Depends: freeswitch-meta-all (= \${binary:Version}), freeswitch-meta-all-dbg (= \${binary:Version})
+Depends: freeswitch-meta-all (= \${binary:Version})
 Conflicts: freeswitch-all (<= 1.6.7)
 Description: Cross-Platform Scalable Multi-Protocol Soft Switch
  $(debian_wrap "${fs_description}")
@@ -633,7 +629,6 @@ Depends: \${misc:Depends}, freeswitch (= \${binary:Version}),
  freeswitch-mod-stress (= \${binary:Version}),
  freeswitch-mod-translate (= \${binary:Version}),
  freeswitch-mod-valet-parking (= \${binary:Version}),
- freeswitch-mod-video-filter (= \${binary:Version}),
  freeswitch-mod-voicemail (= \${binary:Version}),
  freeswitch-mod-voicemail-ivr (= \${binary:Version}),
  freeswitch-mod-flite (= \${binary:Version}),
@@ -649,6 +644,7 @@ Depends: \${misc:Depends}, freeswitch (= \${binary:Version}),
  freeswitch-mod-rtc (= \${binary:Version}),
  freeswitch-mod-rtmp (= \${binary:Version}),
  freeswitch-mod-skinny (= \${binary:Version}),
+ freeswitch-mod-skypopen (= \${binary:Version}),
  freeswitch-mod-sofia (= \${binary:Version}),
  freeswitch-mod-verto (= \${binary:Version}),
  freeswitch-mod-cdr-csv (= \${binary:Version}),
@@ -870,7 +866,6 @@ Depends: \${misc:Depends}, freeswitch (= \${binary:Version}),
  freeswitch-mod-stress-dbg (= \${binary:Version}),
  freeswitch-mod-translate-dbg (= \${binary:Version}),
  freeswitch-mod-valet-parking-dbg (= \${binary:Version}),
- freeswitch-mod-video-filter-dbg (= \${binary:Version}),
  freeswitch-mod-voicemail-dbg (= \${binary:Version}),
  freeswitch-mod-voicemail-ivr-dbg (= \${binary:Version}),
  freeswitch-mod-flite-dbg (= \${binary:Version}),
@@ -886,6 +881,7 @@ Depends: \${misc:Depends}, freeswitch (= \${binary:Version}),
  freeswitch-mod-rtc-dbg (= \${binary:Version}),
  freeswitch-mod-rtmp-dbg (= \${binary:Version}),
  freeswitch-mod-skinny-dbg (= \${binary:Version}),
+ freeswitch-mod-skypopen-dbg (= \${binary:Version}),
  freeswitch-mod-sofia-dbg (= \${binary:Version}),
  freeswitch-mod-verto-dbg (= \${binary:Version}),
  freeswitch-mod-cdr-csv-dbg (= \${binary:Version}),

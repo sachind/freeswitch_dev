@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  *
  *
@@ -39,17 +39,6 @@
 #include <switch.h>
 
 SWITCH_BEGIN_EXTERN_C
-
-typedef struct switch_frame_geometry {
-	int32_t w;
-	int32_t h;
-	int32_t x;
-	int32_t y;
-	int32_t z;
-	int32_t M;
-	int32_t X;
-} switch_frame_geometry_t;
-
 /*! \brief An abstraction of a data frame */
 	struct switch_frame {
 	/*! a pointer to the codec information */
@@ -86,7 +75,6 @@ typedef struct switch_frame_geometry {
 	void *user_data;
 	payload_map_t *pmap;
 	switch_image_t *img;
-	struct switch_frame_geometry geometry;
 };
 
 SWITCH_END_EXTERN_C

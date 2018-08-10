@@ -93,7 +93,6 @@ static uint8_t EVENT_DISPATCH_QUEUE_RUNNING[MAX_DISPATCH_VAL] = { 0 };
 static switch_queue_t *EVENT_DISPATCH_QUEUE = NULL;
 static switch_queue_t *EVENT_CHANNEL_DISPATCH_QUEUE = NULL;
 static switch_mutex_t *EVENT_QUEUE_MUTEX = NULL;
-static switch_mutex_t *CUSTOM_HASH_MUTEX = NULL;
 static switch_hash_t *CUSTOM_HASH = NULL;
 static int THREAD_COUNT = 0;
 static int DISPATCH_THREAD_COUNT = 0;
@@ -220,7 +219,6 @@ static char *EVENT_NAMES[] = {
 	"CALL_SETUP_RESULT",
 	"CALL_DETAIL",
 	"DEVICE_STATE",
-	"TEXT",
 	"ALL"
 };
 
@@ -275,7 +273,7 @@ static void *SWITCH_THREAD_FUNC switch_event_deliver_thread(switch_thread_t *thr
 static void switch_event_deliver_thread_pool(switch_event_t **event)
 {
 	switch_thread_data_t *td;
-
+	
 	td = malloc(sizeof(*td));
 	switch_assert(td);
 
@@ -450,8 +448,6 @@ SWITCH_DECLARE(switch_status_t) switch_event_free_subclass_detailed(const char *
 	switch_event_subclass_t *subclass;
 	switch_status_t status = SWITCH_STATUS_FALSE;
 
-	switch_mutex_lock(CUSTOM_HASH_MUTEX);
-
 	switch_assert(RUNTIME_POOL != NULL);
 	switch_assert(CUSTOM_HASH != NULL);
 
@@ -471,17 +467,12 @@ SWITCH_DECLARE(switch_status_t) switch_event_free_subclass_detailed(const char *
 		}
 	}
 
-	switch_mutex_unlock(CUSTOM_HASH_MUTEX);
-
 	return status;
 }
 
 SWITCH_DECLARE(switch_status_t) switch_event_reserve_subclass_detailed(const char *owner, const char *subclass_name)
 {
-	switch_status_t status = SWITCH_STATUS_SUCCESS;
 	switch_event_subclass_t *subclass;
-
-	switch_mutex_lock(CUSTOM_HASH_MUTEX);
 
 	switch_assert(RUNTIME_POOL != NULL);
 	switch_assert(CUSTOM_HASH != NULL);
@@ -490,9 +481,9 @@ SWITCH_DECLARE(switch_status_t) switch_event_reserve_subclass_detailed(const cha
 		/* a listener reserved it for us, now we can lock it so nobody else can have it */
 		if (subclass->bind) {
 			subclass->bind = 0;
-			switch_goto_status(SWITCH_STATUS_SUCCESS, end);
+			return SWITCH_STATUS_SUCCESS;
 		}
-		switch_goto_status(SWITCH_STATUS_INUSE, end);
+		return SWITCH_STATUS_INUSE;
 	}
 
 	switch_zmalloc(subclass, sizeof(*subclass));
@@ -502,11 +493,7 @@ SWITCH_DECLARE(switch_status_t) switch_event_reserve_subclass_detailed(const cha
 
 	switch_core_hash_insert(CUSTOM_HASH, subclass->name, subclass);
 
-end:
-
-	switch_mutex_unlock(CUSTOM_HASH_MUTEX);
-
-	return status;
+	return SWITCH_STATUS_SUCCESS;
 }
 
 SWITCH_DECLARE(void) switch_core_memory_reclaim_events(void)
@@ -563,12 +550,12 @@ SWITCH_DECLARE(switch_status_t) switch_event_shutdown(void)
 		for(x = 0; x < (uint32_t)DISPATCH_THREAD_COUNT; x++) {
 			switch_queue_trypush(EVENT_DISPATCH_QUEUE, NULL);
 		}
-
+		
 
 		switch_queue_interrupt_all(EVENT_DISPATCH_QUEUE);
-
+		
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CONSOLE, "Stopping dispatch threads\n");
-
+		
 		for(x = 0; x < (uint32_t)DISPATCH_THREAD_COUNT; x++) {
 			switch_status_t st;
 			switch_thread_join(&st, EVENT_DISPATCH_QUEUE_THREADS[x]);
@@ -618,17 +605,17 @@ static void check_dispatch(void)
 {
 	if (!EVENT_DISPATCH_QUEUE) {
 		switch_mutex_lock(BLOCK);
-
+		
 		if (!EVENT_DISPATCH_QUEUE) {
 			switch_queue_create(&EVENT_DISPATCH_QUEUE, DISPATCH_QUEUE_LEN * MAX_DISPATCH, THRUNTIME_POOL);
 			switch_event_launch_dispatch_threads(1);
-
+			
 			while (!THREAD_COUNT) {
 				switch_cond_next();
 			}
 		}
 		switch_mutex_unlock(BLOCK);
-	}
+	}            
 }
 
 
@@ -689,7 +676,6 @@ SWITCH_DECLARE(switch_status_t) switch_event_init(switch_memory_pool_t *pool)
 	switch_mutex_init(&BLOCK, SWITCH_MUTEX_NESTED, RUNTIME_POOL);
 	switch_mutex_init(&POOL_LOCK, SWITCH_MUTEX_NESTED, RUNTIME_POOL);
 	switch_mutex_init(&EVENT_QUEUE_MUTEX, SWITCH_MUTEX_NESTED, RUNTIME_POOL);
-	switch_mutex_init(&CUSTOM_HASH_MUTEX, SWITCH_MUTEX_NESTED, RUNTIME_POOL);
 	switch_core_hash_init(&CUSTOM_HASH);
 
 	if (switch_core_test_flag(SCF_MINIMAL)) {
@@ -1676,7 +1662,6 @@ SWITCH_DECLARE(switch_status_t) switch_event_create_brackets(char *data, char a,
 
 	if (!e) {
 		switch_event_create_plain(&e, SWITCH_EVENT_CHANNEL_DATA);
-		e->flags |= EF_UNIQ_HEADERS;
 	}
 
 
@@ -1710,7 +1695,7 @@ SWITCH_DECLARE(switch_status_t) switch_event_create_brackets(char *data, char a,
 
 				if ((inner_var_count = switch_separate_string(var_array[x], '=',
 															  inner_var_array, (sizeof(inner_var_array) / sizeof(inner_var_array[0])))) == 2) {
-					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "Parsing variable [%s]=[%s]\n", inner_var_array[0], inner_var_array[1]);
+					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG10, "Parsing variable [%s]=[%s]\n", inner_var_array[0], inner_var_array[1]);
 					switch_event_add_header_string(e, SWITCH_STACK_BOTTOM, inner_var_array[0], inner_var_array[1]);
 				}
 			}
@@ -1838,7 +1823,7 @@ SWITCH_DECLARE(switch_status_t) switch_event_serialize_json(switch_event_t *even
 	if (switch_event_serialize_json_obj(event, &cj) == SWITCH_STATUS_SUCCESS) {
 		*str = cJSON_PrintUnformatted(cj);
 		cJSON_Delete(cj);
-
+		
 		return SWITCH_STATUS_SUCCESS;
 	}
 
@@ -2015,16 +2000,12 @@ SWITCH_DECLARE(switch_status_t) switch_event_get_custom_events(switch_console_ca
 	const void *var;
 	void *val;
 	int x = 0;
-
-	switch_mutex_lock(CUSTOM_HASH_MUTEX);
-
+	
 	for (hi = switch_core_hash_first(CUSTOM_HASH); hi; hi = switch_core_hash_next(&hi)) {
 		switch_core_hash_this(hi, &var, NULL, &val);
 		switch_console_push_match(matches, (const char *) var);
 		x++;
 	}
-
-	switch_mutex_unlock(CUSTOM_HASH_MUTEX);
 
 	return x ? SWITCH_STATUS_SUCCESS : SWITCH_STATUS_FALSE;
 }
@@ -2043,16 +2024,11 @@ SWITCH_DECLARE(switch_status_t) switch_event_bind_removable(const char *id, swit
 	}
 
 	if (subclass_name) {
-		switch_mutex_lock(CUSTOM_HASH_MUTEX);
-
 		if (!(subclass = switch_core_hash_find(CUSTOM_HASH, subclass_name))) {
 			switch_event_reserve_subclass_detailed(id, subclass_name);
 			subclass = switch_core_hash_find(CUSTOM_HASH, subclass_name);
 			subclass->bind = 1;
 		}
-
-		switch_mutex_unlock(CUSTOM_HASH_MUTEX);
-
 		if (!subclass) {
 			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Could not reserve subclass. '%s'\n", subclass_name);
 			return SWITCH_STATUS_FALSE;
@@ -2581,7 +2557,7 @@ SWITCH_DECLARE(char *) switch_event_build_param_string(switch_event_t *event, co
 
 				}
 
-				new_len = (strlen((char *) val) * 3) + 1;
+				new_len = (strlen((char *) var) * 3) + 1;
 				if (encode_len < new_len) {
 					char *tmp;
 
@@ -2728,7 +2704,7 @@ static uint32_t switch_event_channel_unsub_head(switch_event_channel_func_t func
 
 		if (!func || thisnp->func == func) {
 			x++;
-
+			
 			if (last) {
 				last->next = np;
 			} else {
@@ -2812,7 +2788,7 @@ static uint32_t switch_event_channel_unsub_channel(switch_event_channel_func_t f
 }
 
 static switch_status_t switch_event_channel_sub_channel(const char *event_channel, switch_event_channel_func_t func, switch_event_channel_id_t id)
-
+														
 {
 	switch_event_channel_sub_node_t *node, *np;
 	switch_event_channel_sub_node_head_t *head;
@@ -2876,7 +2852,7 @@ typedef struct {
 
 
 
-static uint32_t _switch_event_channel_broadcast(const char *event_channel, const char *broadcast_channel,
+static uint32_t _switch_event_channel_broadcast(const char *event_channel, const char *broadcast_channel, 
 												cJSON *json, const char *key, switch_event_channel_id_t id)
 {
 	switch_event_channel_sub_node_t *np;
@@ -2889,7 +2865,7 @@ static uint32_t _switch_event_channel_broadcast(const char *event_channel, const
 			if (np->id == id) {
 				continue;
 			}
-
+			
 			np->func(broadcast_channel, json, key, id);
 			x++;
 		}
@@ -2922,7 +2898,7 @@ static void ecd_deliver(event_channel_data_t **ecdP)
 	*ecdP = NULL;
 
 	_switch_event_channel_broadcast(ecd->event_channel, ecd->event_channel, ecd->json, ecd->key, ecd->id);
-
+	
 	if ((p = strchr(ecd->event_channel, '.'))) {
 		char *main_channel = strdup(ecd->event_channel);
 		p = strchr(main_channel, '.');
@@ -2948,7 +2924,7 @@ static void *SWITCH_THREAD_FUNC switch_event_channel_deliver_thread(switch_threa
 	switch_mutex_unlock(EVENT_QUEUE_MUTEX);
 
 	while(SYSTEM_RUNNING) {
-
+		
 		if (switch_queue_pop(queue, &pop) != SWITCH_STATUS_SUCCESS) {
 			continue;
 		}
@@ -2973,7 +2949,7 @@ static void *SWITCH_THREAD_FUNC switch_event_channel_deliver_thread(switch_threa
 	switch_mutex_unlock(EVENT_QUEUE_MUTEX);
 
 	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CONSOLE, "Event Channel Dispatch Thread Ended.\n");
-	return NULL;
+	return NULL;	
 }
 
 SWITCH_DECLARE(switch_status_t) switch_event_channel_broadcast(const char *event_channel, cJSON **json, const char *key, switch_event_channel_id_t id)
@@ -3006,19 +2982,19 @@ SWITCH_DECLARE(switch_status_t) switch_event_channel_broadcast(const char *event
 
 	if (launch) {
 		switch_thread_data_t *td;
-
+	
 		if (!EVENT_CHANNEL_DISPATCH_QUEUE) {
 			switch_queue_create(&EVENT_CHANNEL_DISPATCH_QUEUE, DISPATCH_QUEUE_LEN * MAX_DISPATCH, THRUNTIME_POOL);
 		}
 
 		td = malloc(sizeof(*td));
 		switch_assert(td);
-
+		
 		td->alloc = 1;
 		td->func = switch_event_channel_deliver_thread;
 		td->obj = EVENT_CHANNEL_DISPATCH_QUEUE;
 		td->pool = NULL;
-
+		
 		switch_thread_pool_launch_thread(&td);
 	}
 
@@ -3030,7 +3006,7 @@ SWITCH_DECLARE(switch_status_t) switch_event_channel_broadcast(const char *event
 	} else {
 		ecd = NULL;
 	}
-
+	
 	return status;
 }
 
@@ -3040,7 +3016,7 @@ SWITCH_DECLARE(uint32_t) switch_event_channel_unbind(const char *event_channel, 
 }
 
 SWITCH_DECLARE(switch_status_t) switch_event_channel_bind(const char *event_channel, switch_event_channel_func_t func, switch_event_channel_id_t *id)
-
+														  
 {
 	switch_status_t status = SWITCH_STATUS_SUCCESS;
 
@@ -3154,7 +3130,7 @@ static switch_status_t la_broadcast(switch_live_array_t *la, cJSON **json)
 
 			cJSON_ReplaceItemInObject(dup, "eventChannel", cJSON_CreateString(np->event_channel));
 			cJSON_ReplaceItemInObject(data, "name", cJSON_CreateString(np->name));
-
+			
 			switch_event_channel_broadcast(np->event_channel, &dup, __FILE__, la->channel_id);
 		}
 		switch_mutex_unlock(la->mutex);
@@ -3172,14 +3148,14 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_visible(switch_live_array_t *l
 	switch_mutex_lock(la->mutex);
 	if (la->visible != visible || force) {
 		cJSON *msg, *data;
-
+		
 		msg = cJSON_CreateObject();
 		data = json_add_child_obj(msg, "data", NULL);
 
 		cJSON_AddItemToObject(msg, "eventChannel", cJSON_CreateString(la->event_channel));
 		cJSON_AddItemToObject(data, "action", cJSON_CreateString(visible ? "hide" : "show"));
 		cJSON_AddItemToObject(data, "wireSerno", cJSON_CreateNumber(la->serno++));
-
+		
 		la_broadcast(la, &msg);
 
 		la->visible = visible;
@@ -3205,7 +3181,7 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_clear(switch_live_array_t *la)
 	cJSON_AddItemToObject(data, "name", cJSON_CreateString(la->name));
 	cJSON_AddItemToObject(data, "wireSerno", cJSON_CreateNumber(-1));
 	cJSON_AddItemToObject(data, "data", cJSON_CreateObject());
-
+	
 	la_broadcast(la, &msg);
 
 	while(np) {
@@ -3217,7 +3193,7 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_clear(switch_live_array_t *la)
 	}
 
 	la->head = la->tail = NULL;
-
+	
 	switch_mutex_unlock(la->mutex);
 
 	return SWITCH_STATUS_SUCCESS;
@@ -3239,7 +3215,7 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_bootstrap(switch_live_array_t 
 	cJSON_AddItemToObject(data, "name", cJSON_CreateString(la->name));
 	cJSON_AddItemToObject(data, "wireSerno", cJSON_CreateNumber(-1));
 	cJSON_AddItemToObject(data, "data", cJSON_CreateObject());
-
+	
 	switch_event_channel_broadcast(la->event_channel, &msg, __FILE__, channel_id);
 
 	for (np = la->head; np; np = np->next) {
@@ -3262,7 +3238,7 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_bootstrap(switch_live_array_t 
 
 	msg = cJSON_CreateObject();
 	data = json_add_child_obj(msg, "data", NULL);
-
+	
 	cJSON_AddItemToObject(msg, "eventChannel", cJSON_CreateString(la->event_channel));
 	cJSON_AddItemToObject(data, "action", cJSON_CreateString("bootObj"));
 	cJSON_AddItemToObject(data, "name", cJSON_CreateString(la->name));
@@ -3280,7 +3256,7 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_bootstrap(switch_live_array_t 
 		cJSON_AddItemToArray(row, cJSON_Duplicate(np->obj, 1));
 		cJSON_AddItemToArray(data, row);
 	}
-
+	
 	switch_event_channel_broadcast(la->event_channel, &msg, __FILE__, channel_id);
 
 
@@ -3318,7 +3294,7 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_destroy(switch_live_array_t **
 	pool = la->pool;
 
 	switch_live_array_clear(la);
-
+	
 	switch_core_hash_destroy(&la->hash);
 
 	switch_mutex_lock(event_channel_manager.lamutex);
@@ -3382,7 +3358,7 @@ SWITCH_DECLARE(switch_bool_t) switch_live_array_add_alias(switch_live_array_t *l
 			break;
 		}
 	}
-
+	
 	if (!exist) {
 		node = switch_core_alloc(la->pool, sizeof(*node));
 		node->event_channel = switch_core_strdup(la->pool, event_channel);
@@ -3408,7 +3384,7 @@ SWITCH_DECLARE(switch_bool_t) switch_live_array_add_alias(switch_live_array_t *l
 	return !exist;
 }
 
-SWITCH_DECLARE(switch_status_t) switch_live_array_create(const char *event_channel, const char *name,
+SWITCH_DECLARE(switch_status_t) switch_live_array_create(const char *event_channel, const char *name, 
 														 switch_event_channel_id_t channel_id, switch_live_array_t **live_arrayP)
 {
 	switch_live_array_t *la = NULL;
@@ -3418,10 +3394,10 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_create(const char *event_chann
 	switch_core_new_memory_pool(&pool);
 	key = switch_core_sprintf(pool, "%s.%s", event_channel, name);
 
-	switch_mutex_lock(event_channel_manager.lamutex);
+	switch_mutex_lock(event_channel_manager.lamutex); 
 	la = switch_core_hash_find(event_channel_manager.lahash, key);
 	switch_mutex_unlock(event_channel_manager.lamutex);
-
+	
 	if (la) {
 		la->new = SWITCH_FALSE;
 	} else {
@@ -3436,7 +3412,7 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_create(const char *event_chann
 		la->channel_id = channel_id;
 		switch_core_hash_init(&la->hash);
 		switch_mutex_init(&la->mutex, SWITCH_MUTEX_NESTED, la->pool);
-
+		
 		switch_mutex_lock(event_channel_manager.lamutex);
 		switch_core_hash_insert(event_channel_manager.lahash, la->key, la);
 		switch_mutex_unlock(event_channel_manager.lamutex);
@@ -3447,7 +3423,7 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_create(const char *event_chann
 	switch_mutex_unlock(la->mutex);
 
 	*live_arrayP = la;
-
+	
 	return SWITCH_STATUS_SUCCESS;
 }
 
@@ -3458,7 +3434,7 @@ SWITCH_DECLARE(cJSON *) switch_live_array_get(switch_live_array_t *la, const cha
 
 	switch_mutex_lock(la->mutex);
 	if ((node = switch_core_hash_find(la->hash, name))) {
-		dup = cJSON_Duplicate(node->obj, 1);
+		dup = cJSON_Duplicate(node->obj, 1); 
 	}
 	switch_mutex_unlock(la->mutex);
 
@@ -3473,12 +3449,12 @@ SWITCH_DECLARE(cJSON *) switch_live_array_get_idx(switch_live_array_t *la, int i
 	switch_mutex_lock(la->mutex);
 	for (node = la->head; node; node = node->next) {
 		if (node->pos == idx) {
-			dup = cJSON_Duplicate(node->obj, 1);
+			dup = cJSON_Duplicate(node->obj, 1); 
 			break;
 		}
 	}
 	switch_mutex_unlock(la->mutex);
-
+	
 	return dup;
 }
 
@@ -3501,7 +3477,7 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_del(switch_live_array_t *la, c
 	switch_mutex_lock(la->mutex);
 	if ((node = switch_core_hash_find(la->hash, name))) {
 		np = la->head;
-
+		
 		while(np) {
 			cur = np;
 			np = np->next;
@@ -3568,9 +3544,9 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_add(switch_live_array_t *la, c
 		if (index > -1 && index < la->pos && la->head) {
 			la_node_t *np, *last = NULL;
 			int i = 0;
-
+			
 			for(np = la->head; np; np = np->next) {
-
+				
 				if (i == index) {
 					if (last) {
 						node->next = last->next;
@@ -3588,7 +3564,7 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_add(switch_live_array_t *la, c
 				last = np;
 				i++;
 			}
-
+			
 
 		} else {
 
@@ -3613,7 +3589,7 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_add(switch_live_array_t *la, c
 
 	msg = cJSON_CreateObject();
 	data = json_add_child_obj(msg, "data", NULL);
-
+	
 	cJSON_AddItemToObject(msg, "eventChannel", cJSON_CreateString(la->event_channel));
 	cJSON_AddItemToObject(data, "action", cJSON_CreateString(action));
 
@@ -3627,7 +3603,7 @@ SWITCH_DECLARE(switch_status_t) switch_live_array_add(switch_live_array_t *la, c
 	cJSON_AddItemToObject(data, "data", cJSON_Duplicate(node->obj, 1));
 
 	la_broadcast(la, &msg);
-
+	
 	switch_mutex_unlock(la->mutex);
 
 	return status;
@@ -3651,7 +3627,7 @@ SWITCH_DECLARE(void) switch_live_array_parse_json(cJSON *json, switch_event_chan
 	const char *context = NULL, *name = NULL;
 	switch_live_array_t *la = NULL;
 	cJSON *jla = NULL;
-
+	
 	if ((jla = cJSON_GetObjectItem(json, "data")) && (jla = cJSON_GetObjectItem(jla, "liveArray"))) {
 
 		if ((context = cJSON_GetObjectCstr(jla, "context")) && (name = cJSON_GetObjectCstr(jla, "name"))) {
@@ -3660,7 +3636,7 @@ SWITCH_DECLARE(void) switch_live_array_parse_json(cJSON *json, switch_event_chan
 
 			if (command) {
 				if (switch_live_array_create(context, name, channel_id, &la) == SWITCH_STATUS_SUCCESS) {
-
+				
 					if (!strcasecmp(command, "bootstrap")) {
 						switch_live_array_bootstrap(la, sessid, channel_id);
 					} else {

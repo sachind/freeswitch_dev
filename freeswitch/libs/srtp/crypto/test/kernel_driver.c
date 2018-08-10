@@ -8,7 +8,7 @@
  */
 /*
  *	
- * Copyright(c) 2001-2017 Cisco Systems, Inc.
+ * Copyright(c) 2001-2006 Cisco Systems, Inc.
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -43,12 +43,8 @@
  */
 
 
-#ifdef HAVE_CONFIG_H
-    #include <config.h>
-#endif
-
 #include <stdio.h>           /* for printf() */
-#include "getopt_s.h"
+#include <unistd.h>          /* for getopt() */
 #include "crypto_kernel.h"
 
 void
@@ -59,24 +55,25 @@ usage(char *prog_name) {
 
 int
 main (int argc, char *argv[]) {
+  extern char *optarg;
   int q;
   int do_validation      = 0;
-  srtp_err_status_t status;
+  err_status_t status;
 
   if (argc == 1)
     usage(argv[0]);
 
   /* initialize kernel - we need to do this before anything else */ 
-  status = srtp_crypto_kernel_init();
+  status = crypto_kernel_init();
   if (status) {
-    printf("error: srtp_crypto_kernel init failed\n");
+    printf("error: crypto_kernel init failed\n");
     exit(1);
   }
-  printf("srtp_crypto_kernel successfully initalized\n");
+  printf("crypto_kernel successfully initalized\n");
 
   /* process input arguments */
   while (1) {
-    q = getopt_s(argc, argv, "vd:");
+    q = getopt(argc, argv, "vd:");
     if (q == -1) 
       break;
     switch (q) {
@@ -84,9 +81,9 @@ main (int argc, char *argv[]) {
       do_validation = 1;
       break;
     case 'd':
-      status = srtp_crypto_kernel_set_debug_module(optarg_s, 1);
+      status = crypto_kernel_set_debug_module(optarg, 1);
       if (status) {
-	printf("error: set debug module (%s) failed\n", optarg_s);
+	printf("error: set debug module (%s) failed\n", optarg);
 	exit(1);
       }
       break;
@@ -96,21 +93,21 @@ main (int argc, char *argv[]) {
   }
 
   if (do_validation) {
-    printf("checking srtp_crypto_kernel status...\n");
-    status = srtp_crypto_kernel_status();
+    printf("checking crypto_kernel status...\n");
+    status = crypto_kernel_status();
     if (status) {
       printf("failed\n");
       exit(1);
     }
-    printf("srtp_crypto_kernel passed self-tests\n");
+    printf("crypto_kernel passed self-tests\n");
   }
 
-  status = srtp_crypto_kernel_shutdown();
+  status = crypto_kernel_shutdown();
   if (status) {
-    printf("error: srtp_crypto_kernel shutdown failed\n");
+    printf("error: crypto_kernel shutdown failed\n");
     exit(1);
   }
-  printf("srtp_crypto_kernel successfully shut down\n");
+  printf("crypto_kernel successfully shut down\n");
   
   return 0;
 }
@@ -120,10 +117,10 @@ main (int argc, char *argv[]) {
  * of the crypto_kernel
  */
 
-srtp_err_status_t
+err_status_t
 crypto_kernel_cipher_test(void) {
 
   /* not implemented yet! */
 
-  return srtp_err_status_ok;
+  return err_status_ok;
 }

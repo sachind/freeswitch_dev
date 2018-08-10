@@ -78,9 +78,7 @@ void conference_al_gen_arc(conference_obj_t *conference, switch_stream_handle_t 
 
 	switch_mutex_lock(conference->member_mutex);
 	for (member = conference->members; member; member = member->next) {
-		if (member->channel && conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK) &&
-			!conference_utils_member_test_flag(member, MFLAG_HOLD) &&
-			!conference_utils_member_test_flag(member, MFLAG_NO_POSITIONAL)) {
+		if (member->channel && conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK) && !conference_utils_member_test_flag(member, MFLAG_NO_POSITIONAL)) {
 			count++;
 		}
 	}
@@ -114,9 +112,7 @@ void conference_al_gen_arc(conference_obj_t *conference, switch_stream_handle_t 
 
 	for (member = conference->members; member; member = member->next) {
 
-		if (!member->channel || conference_utils_member_test_flag(member, MFLAG_NO_POSITIONAL) ||
-			conference_utils_member_test_flag(member, MFLAG_HOLD) ||
-			!conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK)) {
+		if (!member->channel || conference_utils_member_test_flag(member, MFLAG_NO_POSITIONAL) || !conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK)) {
 			continue;
 		}
 

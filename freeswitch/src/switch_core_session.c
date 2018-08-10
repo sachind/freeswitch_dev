@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Michael Jerris <mike@jerris.com>
  * Paul D. Tinsley <pdt at jackhammer.org>
@@ -57,7 +57,7 @@ SWITCH_DECLARE(switch_ivr_dmachine_t *) switch_core_session_get_dmachine(switch_
 {
 	int i = (int) target;
 
-	if (i == 0 || i == 1) {
+	if (i == 0 || i == 1) {	
 		return session->dmachine[i];
 	}
 
@@ -85,7 +85,7 @@ SWITCH_DECLARE(void) switch_core_session_soft_unlock(switch_core_session_t *sess
 }
 
 SWITCH_DECLARE(switch_status_t) switch_core_session_set_codec_slin(switch_core_session_t *session, switch_slin_data_t *data)
-
+													
 {
 	switch_codec_implementation_t read_impl = { 0 };
 	int interval;
@@ -208,7 +208,8 @@ struct str_node {
 	struct str_node *next;
 };
 
-SWITCH_DECLARE(uint32_t) switch_core_session_hupall_matching_vars_ans(switch_event_t *vars, switch_call_cause_t cause, switch_hup_type_t type)
+SWITCH_DECLARE(uint32_t) switch_core_session_hupall_matching_var_ans(const char *var_name, const char *var_val, switch_call_cause_t cause, 
+																	 switch_hup_type_t type)
 {
 	switch_hash_index_t *hi;
 	void *val;
@@ -219,7 +220,7 @@ SWITCH_DECLARE(uint32_t) switch_core_session_hupall_matching_vars_ans(switch_eve
 
 	switch_core_new_memory_pool(&pool);
 
-	if (!vars || !vars->headers)
+	if (!var_val)
 		return r;
 
 	switch_mutex_lock(runtime.session_hash_mutex);
@@ -243,23 +244,11 @@ SWITCH_DECLARE(uint32_t) switch_core_session_hupall_matching_vars_ans(switch_eve
 
 	for(np = head; np; np = np->next) {
 		if ((session = switch_core_session_locate(np->str))) {
-			const char *this_value;
-			if (switch_channel_up_nosig(session->channel)) {
-				/* check if all conditions are satisfied */
-				int do_hangup = 1;
-				switch_event_header_t *hp;
-				for (hp = vars->headers; hp; hp = hp->next) {
-					const char *var_name = hp->name;
-					const char *var_value = hp->value;
-					if (!(this_value = switch_channel_get_variable(session->channel, var_name)) || (strcmp(this_value, var_value))) {
-						do_hangup = 0;
-						break;
-					}
-				}
-				if (do_hangup) {
-					switch_channel_hangup(session->channel, cause);
-					r++;
-				}
+			const char *this_val;
+			if (switch_channel_up_nosig(session->channel) &&
+				(this_val = switch_channel_get_variable(session->channel, var_name)) && (!strcmp(this_val, var_val))) {			
+				switch_channel_hangup(session->channel, cause);
+				r++;
 			}
 			switch_core_session_rwunlock(session);
 		}
@@ -270,21 +259,6 @@ SWITCH_DECLARE(uint32_t) switch_core_session_hupall_matching_vars_ans(switch_eve
 	return r;
 }
 
-SWITCH_DECLARE(uint32_t) switch_core_session_hupall_matching_var_ans(const char *var_name, const char *var_val, switch_call_cause_t cause,
-																	 switch_hup_type_t type)
-{
-	switch_event_t *vars;
-	int r = 0;
-
-	if (!var_val || !var_name)
-		return r;
-
-	switch_event_create(&vars, SWITCH_EVENT_CLONE);
-	switch_event_add_header_string(vars, SWITCH_STACK_BOTTOM, var_name, var_val);
-	r = switch_core_session_hupall_matching_vars_ans(vars, cause, type);
-	switch_event_destroy(&vars);
-	return r;
-}
 
 SWITCH_DECLARE(switch_console_callback_match_t *) switch_core_session_findall_matching_var(const char *var_name, const char *var_val)
 {
@@ -322,7 +296,7 @@ SWITCH_DECLARE(switch_console_callback_match_t *) switch_core_session_findall_ma
 		if ((session = switch_core_session_locate(np->str))) {
 			const char *this_val;
 			if (switch_channel_up_nosig(session->channel) &&
-				(this_val = switch_channel_get_variable_dup(session->channel, var_name, SWITCH_FALSE, -1)) &&
+				(this_val = switch_channel_get_variable_dup(session->channel, var_name, SWITCH_FALSE, -1)) && 
 				(!var_val || (like && switch_stristr(like, var_val)) || !strcmp(this_val, var_val))) {
 				switch_console_push_match(&my_matches, (const char *) np->str);
 			}
@@ -343,9 +317,9 @@ SWITCH_DECLARE(void) switch_core_session_hupall_endpoint(const switch_endpoint_i
 	switch_core_session_t *session;
 	switch_memory_pool_t *pool;
 	struct str_node *head = NULL, *np;
-
+	
 	switch_core_new_memory_pool(&pool);
-
+	
 	switch_mutex_lock(runtime.session_hash_mutex);
 	for (hi = switch_core_hash_first(session_manager.session_table); hi; hi = switch_core_hash_next(&hi)) {
 		switch_core_hash_this(hi, NULL, NULL, &val);
@@ -402,7 +376,7 @@ SWITCH_DECLARE(void) switch_core_session_hupall(switch_call_cause_t cause)
 	}
 	switch_mutex_unlock(runtime.session_hash_mutex);
 
-	for(np = head; np; np = np->next) {
+	for(np = head; np; np = np->next) { 
 		if ((session = switch_core_session_locate(np->str))) {
 			switch_channel_hangup(session->channel, cause);
 			switch_core_session_rwunlock(session);
@@ -658,15 +632,13 @@ SWITCH_DECLARE(switch_call_cause_t) switch_core_session_outgoing_channel(switch_
 		if (channel) {
 			const char *val;
 			switch_codec_t *vid_read_codec = NULL, *read_codec = switch_core_session_get_read_codec(session);
-			const char *ep = NULL, *max_forwards = switch_core_session_sprintf(session, "%d", forwardval);
+			const char *ep, *max_forwards = switch_core_session_sprintf(session, "%d", forwardval);
 
 			switch_channel_set_variable(peer_channel, SWITCH_MAX_FORWARDS_VARIABLE, max_forwards);
 
 			profile = switch_channel_get_caller_profile(channel);
 
 			vid_read_codec = switch_core_session_get_video_read_codec(session);
-
-			ep = switch_channel_get_variable(channel, "ep_codec_string");
 
 			if (read_codec && read_codec->implementation && switch_core_codec_ready(read_codec)) {
 				char rc[80] = "", vrc[80] = "", tmp[160] = "";
@@ -680,21 +652,9 @@ SWITCH_DECLARE(switch_call_cause_t) switch_core_session_outgoing_channel(switch_
 
 				switch_snprintf(tmp, sizeof(tmp), "%s%s", rc, vrc);
 				switch_channel_set_variable(peer_channel, SWITCH_ORIGINATOR_CODEC_VARIABLE, tmp);
-			} else if (ep) {
+			} else if ((ep = switch_channel_get_variable(channel, "ep_codec_string"))) {
 				switch_channel_set_variable(peer_channel, SWITCH_ORIGINATOR_CODEC_VARIABLE, ep);
 			}
-
-
-			if (switch_channel_test_flag(channel, CF_MSRPS) || switch_channel_test_flag(channel, CF_WANT_MSRPS)) {
-				switch_channel_set_flag(peer_channel, CF_WANT_MSRPS);
-			} else if (switch_channel_test_flag(channel, CF_MSRP) || switch_channel_test_flag(channel, CF_WANT_MSRP)) {
-				switch_channel_set_flag(peer_channel, CF_WANT_MSRP);
-			}
-
-			if (switch_channel_test_flag(channel, CF_RTT) || switch_channel_test_flag(channel, CF_WANT_RTT)) {
-				switch_channel_set_flag(peer_channel, CF_WANT_RTT);
-			}
-
 
 			switch_channel_set_variable(peer_channel, SWITCH_ORIGINATOR_VARIABLE, switch_core_session_get_uuid(session));
 			switch_channel_set_variable(peer_channel, SWITCH_SIGNAL_BOND_VARIABLE, switch_core_session_get_uuid(session));
@@ -850,7 +810,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_perform_receive_message(swit
 	if ((status = switch_core_session_read_lock_hangup(session)) != SWITCH_STATUS_SUCCESS) {
 		return status;
 	}
-
+	
 	if (!message->_file) {
 		message->_file = file;
 	}
@@ -885,7 +845,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_perform_receive_message(swit
 
 		if (zstr(message->string_array_arg[0]) && !zstr(message->string_arg)) {
 			arg = switch_core_session_strdup(session, message->string_arg);
-			switch_separate_string(arg, '|', (char **)message->string_array_arg, 2);
+			switch_separate_string(arg, '|', (char **)message->string_array_arg, 2);			
 		}
 
 		if (!zstr(message->string_array_arg[0])) {
@@ -895,7 +855,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_perform_receive_message(swit
 		if (!zstr(message->string_array_arg[1])) {
 			switch_channel_set_variable(session->channel, "last_sent_callee_id_number", message->string_array_arg[1]);
 		}
-
+		
 
 		if (switch_true(switch_channel_get_variable(session->channel, SWITCH_IGNORE_DISPLAY_UPDATES_VARIABLE))) {
 			switch_log_printf(SWITCH_CHANNEL_ID_LOG, message->_file, message->_func, message->_line,
@@ -910,7 +870,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_perform_receive_message(swit
 		switch_log_printf(SWITCH_CHANNEL_ID_LOG, message->_file, message->_func, message->_line,
 						  switch_core_session_get_uuid(session), SWITCH_LOG_DEBUG, "%s skip receive message [%s] (channel is hungup already)\n",
 						  switch_channel_get_name(session->channel), message_names[message->message_id]);
-
+	
 	} else {
 		if (session->media_handle) {
 			status = switch_core_media_receive_message(session, message);
@@ -938,7 +898,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_perform_receive_message(swit
 			switch_channel_clear_flag(session->channel, CF_CONFIRM_BLIND_TRANSFER);
 
 			if (!zstr(uuid) && (other_session = switch_core_session_locate(uuid))) {
-				switch_core_session_message_t msg = { 0 };
+				switch_core_session_message_t msg = { 0 };			
 				msg.message_id = SWITCH_MESSAGE_INDICATE_BLIND_TRANSFER_RESPONSE;
 				msg.from = __FILE__;
 				msg.numeric_arg = 1;
@@ -1131,7 +1091,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_queue_signal_data(switch_cor
 		switch_core_session_wake_session_thread(session);
 
 	}
-
+	
 	return status;
 }
 
@@ -1432,7 +1392,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_wake_session_thread(switch_c
  top:
 
 	status = switch_mutex_trylock(session->mutex);
-
+	
 	if (status == SWITCH_STATUS_SUCCESS) {
 		switch_thread_cond_signal(session->cond);
 		switch_mutex_unlock(session->mutex);
@@ -1527,14 +1487,6 @@ SWITCH_DECLARE(void) switch_core_session_perform_destroy(switch_core_session_t *
 					  switch_channel_get_name((*session)->channel), switch_channel_state_name(switch_channel_get_state((*session)->channel)));
 
 
-	if ((*session)->text_buffer) {
-		switch_buffer_destroy(&(*session)->text_buffer);
-	}
-
-	if ((*session)->text_line_buffer) {
-		switch_buffer_destroy(&(*session)->text_line_buffer);
-	}
-
 	switch_core_session_reset(*session, SWITCH_TRUE, SWITCH_TRUE);
 
 	switch_core_media_bug_remove_all(*session);
@@ -1595,7 +1547,7 @@ SWITCH_STANDARD_SCHED_FUNC(sch_heartbeat_callback)
 	switch_event_t *event;
 	switch_core_session_t *session;
 	char *uuid = task->cmd_arg;
-	switch_core_session_message_t msg = { 0 };
+	switch_core_session_message_t msg = { 0 }; 
 
 	if ((session = switch_core_session_locate(uuid))) {
 		switch_event_create(&event, SWITCH_EVENT_SESSION_HEARTBEAT);
@@ -1753,7 +1705,7 @@ static void *SWITCH_THREAD_FUNC switch_core_session_thread_pool_worker(switch_th
 		if (check_status == SWITCH_STATUS_SUCCESS) {
 			switch_thread_data_t *td = (switch_thread_data_t *) pop;
 
-#ifdef DEBUG_THREAD_POOL
+#ifdef DEBUG_THREAD_POOL			
 			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG10, "Worker Thread %ld Processing\n", (long) (intptr_t) thread);
 #endif
 			td->func(thread, td->obj);
@@ -1809,11 +1761,11 @@ static void thread_launch_failure(void)
 						  "Artoo reduces the max sessions to %d thus, saving the switch from certain doom.\n", sess_count - 10);
 
 	}
-
+	
 	switch_mutex_unlock(session_manager.mutex);
 }
 
-static switch_status_t check_queue(void)
+static switch_status_t check_queue(void) 
 {
 	switch_status_t status = SWITCH_STATUS_FALSE;
 	switch_mutex_lock(session_manager.mutex);
@@ -1829,7 +1781,7 @@ static switch_status_t check_queue(void)
 		switch_threadattr_t *thd_attr;
 		switch_memory_pool_t *pool;
 		switch_thread_pool_node_t *node;
-
+		
 		switch_core_new_memory_pool(&pool);
 		node = switch_core_alloc(pool, sizeof(*node));
 		node->pool = pool;
@@ -1870,7 +1822,7 @@ SWITCH_DECLARE(switch_status_t) switch_thread_pool_launch_thread(switch_thread_d
 	status = switch_queue_push(session_manager.thread_queue, td);
 	check_queue();
 
-	return status;
+	return status;	
 }
 
 SWITCH_DECLARE(switch_status_t) switch_core_session_thread_pool_launch(switch_core_session_t *session)
@@ -1903,7 +1855,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_thread_launch(switch_core_se
 	switch_status_t status = SWITCH_STATUS_FALSE;
 	switch_thread_t *thread;
 	switch_threadattr_t *thd_attr;
-
+	
 	if (switch_test_flag(session, SSF_THREAD_RUNNING) || switch_test_flag(session, SSF_THREAD_STARTED)) {
 		status = SWITCH_STATUS_INUSE;
 		goto end;
@@ -1913,7 +1865,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_thread_launch(switch_core_se
 	if (switch_test_flag((&runtime), SCF_SESSION_THREAD_POOL)) {
 		return switch_core_session_thread_pool_launch(session);
 	}
-
+	
 	switch_mutex_lock(session->mutex);
 
 	if (switch_test_flag(session, SSF_THREAD_RUNNING)) {
@@ -1933,7 +1885,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_thread_launch(switch_core_se
 			status = SWITCH_STATUS_SUCCESS;
 		} else {
 			switch_clear_flag(session, SSF_THREAD_RUNNING);
-			switch_clear_flag(session, SSF_THREAD_STARTED);
+			switch_clear_flag(session, SSF_THREAD_STARTED);	
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_CRIT, "Cannot create thread!\n");
 			thread_launch_failure();
 		}
@@ -1944,19 +1896,6 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_thread_launch(switch_core_se
  end:
 
 	return status;
-}
-
-SWITCH_DECLARE(const char *) switch_core_session_get_text_buffer(switch_core_session_t *session)
-{
-	const char *buf = NULL;
-
-	if (session->text_buffer) {
-		switch_mutex_lock(session->text_mutex);
-		buf = (const char *)switch_core_session_strdup(session, (const char *) switch_buffer_get_head_pointer(session->text_buffer));
-		switch_mutex_unlock(session->text_mutex);
-	}
-
-	return buf;
 }
 
 SWITCH_DECLARE(void) switch_core_session_launch_thread(switch_core_session_t *session, switch_thread_start_t func, void *obj)
@@ -2187,7 +2126,7 @@ SWITCH_DECLARE(switch_core_session_t *) switch_core_session_request_xml(switch_e
 			}
 		}
 	}
-
+	
 	if ((callflow = switch_xml_child(xml, "callflow"))) {
 		if ((tag2 = switch_xml_child(callflow, "caller_profile"))) {
 			switch_caller_profile_t *caller_profile;
@@ -2339,7 +2278,7 @@ SWITCH_DECLARE(switch_core_session_t *) switch_core_session_request_uuid(switch_
 		count = session_manager.session_count;
 		sps = --runtime.sps;
 		switch_mutex_unlock(runtime.throttle_mutex);
-
+		
 		if (sps <= 0) {
 			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Throttle Error! %d\n", session_manager.session_count);
 			UNPROTECT_INTERFACE(endpoint_interface);
@@ -2595,7 +2534,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_execute_application_async(sw
 {
 	switch_event_t *execute_event;
 	char *ap, *arp;
-
+	
 	if (!arg && strstr(app, "::")) {
 		ap = switch_core_session_strdup(session, app);
 		app = ap;
@@ -2605,7 +2544,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_execute_application_async(sw
 			arg = arp + 2;
 		}
 	}
-
+	
 	if (switch_event_create(&execute_event, SWITCH_EVENT_COMMAND) == SWITCH_STATUS_SUCCESS) {
 		switch_event_add_header_string(execute_event, SWITCH_STACK_BOTTOM, "call-command", "execute");
 		switch_event_add_header_string(execute_event, SWITCH_STACK_BOTTOM, "execute-app-name", app);
@@ -2613,14 +2552,14 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_execute_application_async(sw
 		if (arg) {
 			switch_event_add_header_string(execute_event, SWITCH_STACK_BOTTOM, "execute-app-arg", arg);
 		}
-
+		
 		if (!switch_channel_test_flag(session->channel, CF_PROXY_MODE)) {
 			switch_channel_set_flag(session->channel, CF_BLOCK_BROADCAST_UNTIL_MEDIA);
 		}
 
 		switch_event_add_header_string(execute_event, SWITCH_STACK_BOTTOM, "event-lock", "true");
 		switch_core_session_queue_private_event(session, &execute_event, SWITCH_FALSE);
-
+		
 		return SWITCH_STATUS_SUCCESS;
 	}
 
@@ -2654,21 +2593,21 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_execute_application_get_flag
 			*p++ = '0';
 			arg = p;
 
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING, "%s ASYNC CALL CONVERTED TO INLINE %s(%s)\n",
-							  switch_channel_get_name(session->channel), app, switch_str_nil(arg));
+			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING, "%s ASYNC CALL CONVERTED TO INLINE %s(%s)\n", 
+							  switch_channel_get_name(session->channel), app, switch_str_nil(arg));			
 		}
-
+		
 		if ((application_interface = switch_loadable_module_get_application_interface(app)) == 0) {
 			return SWITCH_STATUS_FALSE;
 		}
 
 		if (switch_test_flag(application_interface, SAF_ZOMBIE_EXEC)) {
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s ZOMBIE EXEC %s(%s)\n",
+			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s ZOMBIE EXEC %s(%s)\n", 
 							  switch_channel_get_name(session->channel), app, switch_str_nil(arg));
 			goto exec;
 		}
 
-		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG,
+		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, 
 						  "%s Channel is hungup and application '%s' does not have the zombie_exec flag.\n",
 						  switch_channel_get_name(session->channel), app);
 
@@ -2721,20 +2660,11 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_execute_application_get_flag
 			} while(!ready && sanity);
 
 			if (!ready) {
-				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING,
+				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING, 
 								  "Cannot execute app '%s' media required on an outbound channel that does not have media established\n", app);
 				switch_goto_status(SWITCH_STATUS_FALSE, done);
 			}
 		}
-	}
-
-	if (switch_channel_text_only(session->channel) &&
-		!switch_test_flag(application_interface, SAF_SUPPORT_NOMEDIA) &&
-		!switch_test_flag(application_interface, SAF_SUPPORT_TEXT_ONLY)) {
-		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Application %s does not support text-only mode on channel %s!\n",
-						  app, switch_channel_get_name(session->channel));
-		switch_channel_hangup(session->channel, SWITCH_CAUSE_SERVICE_NOT_IMPLEMENTED);
-		switch_goto_status(SWITCH_STATUS_FALSE, done);
 	}
 
  exec:
@@ -2781,7 +2711,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_exec(switch_core_session_t *
 	if (expanded && *expanded == '%' && (*(expanded+1) == '[' || *(expanded+2) == '[')) {
 		char *p, *dup;
 		switch_event_t *ovars = NULL;
-
+		
 		p = expanded + 1;
 
 		if (*p != '[') {
@@ -2790,7 +2720,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_exec(switch_core_session_t *
 		}
 
 		dup = strdup(p);
-
+		
 		if (expanded != arg) {
 			switch_safe_free(expanded);
 		}
@@ -2802,7 +2732,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_exec(switch_core_session_t *
 		scope = 1;
 	}
 
-
+	
 	if ( switch_core_test_flag(SCF_DIALPLAN_TIMESTAMPS) ) {
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "EXECUTE %s %s(%s)\n",
 					  switch_channel_get_name(session->channel), app, switch_str_nil(expanded));
@@ -2893,14 +2823,6 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_exec(switch_core_session_t *
 	}
 
 	return SWITCH_STATUS_SUCCESS;
-}
-
-SWITCH_DECLARE(uint32_t) switch_core_session_stack_count(switch_core_session_t *session, int x)
-{
-	if (x > 0) session->stack_count++;
-	else if (x < 0) session->stack_count--;
-
-	return session->stack_count;
 }
 
 SWITCH_DECLARE(switch_status_t) switch_core_session_execute_exten(switch_core_session_t *session, const char *exten, const char *dialplan,
@@ -3040,17 +2962,6 @@ SWITCH_DECLARE(void) switch_core_session_raw_read(switch_core_session_t *session
 
 	switch_core_session_set_codec_slin(session, session->sdata);
 }
-
-SWITCH_DECLARE(switch_status_t) switch_core_session_override_io_routines(switch_core_session_t *session, switch_io_routines_t *ior)
-{
-	if (session->endpoint_interface && switch_channel_test_cap(session->channel, CC_IO_OVERRIDE)) {
-		session->io_override = ior;
-		return SWITCH_STATUS_SUCCESS;
-	}
-
-	return SWITCH_STATUS_FALSE;
-}
-
 
 /* For Emacs:
  * Local Variables:

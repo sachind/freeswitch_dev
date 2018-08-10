@@ -147,7 +147,7 @@ function real_size() {
 
 	var new_w;
 	var new_h;
-	var aspect = w / h;
+	var aspect = 1920 / 1080; /*temasys doesn't provide video width hack aspect to wide screen*/
 	
 	if (w > h) {
 	    new_w = window.innerWidth;
@@ -441,71 +441,42 @@ var callbacks = {
                 }
             }
             break;
-        case $.verto.enum.message.clientReady:
-//            console.error("clientReady", data);
-						break;
         case $.verto.enum.message.info:
-	    if (data.msg) {
-		data = data.msg;
-		var body = data.body;
-		
+	    var body = data.body;
+
 		/*
 		// This section has been replaced with messageTextToJQ function
 
-		if (body.match(/\.gif|\.jpg|\.jpeg|\.png/)) {
+	    if (body.match(/\.gif|\.jpg|\.jpeg|\.png/)) {
 		var mod = "";
 		if (body.match(/dropbox.com/)) {
-		mod = "?dl=1";
+		    mod = "?dl=1";
 		}
 		body = body.replace(/(http[s]{0,1}:\/\/\S+)/g, "<a target='_blank' href='$1'>$1<br><img border='0' class='chatimg' src='$1'" + mod + "><\/a>");
-		} else {
+	    } else {
 		body = body.replace(/(http[s]{0,1}:\/\/\S+)/g, "<a target='_blank' href='$1'>$1<\/a>");
-		}
+	    }
 
-		if (body.slice(-1) !== "\n") {
+	    if (body.slice(-1) !== "\n") {
 		body += "\n";
-		}
-		body = body.replace(/(?:\r\n|\r|\n)/g, '<br />');
-		
-    		var from = data.from_msg_name || data.from;
+	    }
+	    body = body.replace(/(?:\r\n|\r|\n)/g, '<br />');
+	    
+    	    var from = data.from_msg_name || data.from;
 
-		$("#chatwin").append("<span class=chatuid>" + from + ":</span><br>" + body);
-		$('#chatwin').animate({"scrollTop": $('#chatwin')[0].scrollHeight}, "fast");
+            $("#chatwin").append("<span class=chatuid>" + from + ":</span><br>" + body);
+	    $('#chatwin').animate({"scrollTop": $('#chatwin')[0].scrollHeight}, "fast");
 		*/
 		
-		var from = data.from_msg_name || data.from;
+			var from = data.from_msg_name || data.from;
+			
+			$('#chatwin')
+				.append($('<span class="chatuid" />').text(from + ':'))
+				.append($('<br />'))
+				.append(messageTextToJQ(body))
+				.append($('<br />'));
+			$('#chatwin').animate({"scrollTop": $('#chatwin')[0].scrollHeight}, "fast");
 		
-		$('#chatwin')
-		    .append($('<span class="chatuid" />').text(from + ':'))
-		    .append($('<br />'))
-		    .append(messageTextToJQ(body))
-		    .append($('<br />'));
-		$('#chatwin').animate({"scrollTop": $('#chatwin')[0].scrollHeight}, "fast");
-	    }
-
-	    if (data.txt) {
-		console.log(data.txt);
-		if (data.txt.chars) {
-		    var a = [...data.txt.chars];
-		    //console.log(a);
-		    for (var x in a) {
-			if(a[x] == "\r") {
-			    $("#rtt_in").append("\n");
-			    continue;
-			} else if (a[x] == "\b") {
-			    $("#rtt_in").text($("#rtt_in").text().slice(0, -1));
-			    continue;
-			}
-			console.log("[" + a[x] + "]");
-			$("#rtt_in").append(a[x]);
-		    }
-
-		    var psconsole = $('#rtt_in');
-		    if(psconsole.length)
-			psconsole.scrollTop(psconsole[0].scrollHeight - psconsole.height());
-		}
-	    }
-
             break;
         case $.verto.enum.message.display:
             var party = dialog.params.remote_caller_id_name + "<" + dialog.params.remote_caller_id_number + ">";
@@ -568,7 +539,7 @@ var callbacks = {
             });
 
             $("#declinebtn").click(function() {
-                cur_call.hangup({"cause": "CALL_REJECTED"});
+                cur_call.hangup();
                 $('#dialog-incoming-call').dialog('close');
             });
 
@@ -1642,30 +1613,6 @@ function init() {
     online(false);
 
     setupChat();
-
-    $("#rtt").val("");
-    $("#rtt_in").text("");
-
-
-    $("#rtt").keyup(function (event) {
-	console.error(event);
-	console.log("KEY (" + event.which + ")\n");
-
-	if (event.which == 8) {
-	    cur_call.rtt({code: event.which});
-	}
-
-	if (event.which == 13) {
-	    $("#rtt").val("");
-	}
-
-    });
-
-    $("#rtt").keypress(function (event) {
-	console.error(event);
-	console.log("TEXT (" + event.which + ")\n");
-	cur_call.rtt({code: event.which});
-    });
 
     $("#ext").keyup(function (event) {
 	if (event.keyCode == 13) {

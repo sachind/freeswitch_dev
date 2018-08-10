@@ -92,7 +92,6 @@
   "LOGIN_INFORMATION": "Login Information",
   "SAVE_LOGIN_INFORMATION": "Save Login Information",
   "INVALID_LOGIN_FIELDS": "Verify the fields below and try again.",
-  "INVALID_SETTINGS_FIELDS": "Verify the settings below and try again.",
   "NAME": "Name",
   "YOUR_NAME": "Your name",
   "EMAIL": "Email",
@@ -156,6 +155,5 @@
   "LANGUAGE": "Language:",
   "BROWSER_LANGUAGE": "Browser Language",
   "FACTORY_RESET_SETTINGS": "Factory Reset Settings",
-  "AUTOGAIN_CONTROL": "Auto Gain Control",
-  "WAITING_DEVICES": "Waiting for devices..."
+  "AUTOGAIN_CONTROL": "Auto Gain Control"
 }

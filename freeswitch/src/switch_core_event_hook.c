@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  *
  * switch_core_event_hook.c Core Event Hooks
@@ -32,19 +32,17 @@
 #include "private/switch_core_pvt.h"
 
 NEW_HOOK_DECL(outgoing_channel)
-NEW_HOOK_DECL(receive_message)
-NEW_HOOK_DECL(receive_event)
-NEW_HOOK_DECL(state_change)
-NEW_HOOK_DECL(state_run)
-NEW_HOOK_DECL(read_frame)
-NEW_HOOK_DECL(write_frame)
-NEW_HOOK_DECL(video_read_frame)
-NEW_HOOK_DECL(video_write_frame)
-NEW_HOOK_DECL(text_read_frame)
-NEW_HOOK_DECL(text_write_frame)
-NEW_HOOK_DECL(kill_channel)
-NEW_HOOK_DECL(send_dtmf)
-NEW_HOOK_DECL(recv_dtmf)
+	NEW_HOOK_DECL(receive_message)
+	NEW_HOOK_DECL(receive_event)
+	NEW_HOOK_DECL(state_change)
+	NEW_HOOK_DECL(state_run)
+	NEW_HOOK_DECL(read_frame)
+	NEW_HOOK_DECL(write_frame)
+	NEW_HOOK_DECL(video_read_frame)
+	NEW_HOOK_DECL(video_write_frame)
+	NEW_HOOK_DECL(kill_channel)
+	NEW_HOOK_DECL(send_dtmf)
+	NEW_HOOK_DECL(recv_dtmf)
 
 /* For Emacs:
  * Local Variables:

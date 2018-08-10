@@ -2,7 +2,14 @@
   <div class="content">
     <div class="col-md-4">
 
-      <div class="form-group">
+      <div class="form-group" ng-show="mydata.useVideo">
+        <label for="settings-camera">{{ 'CAMERA_SETTINGS' | translate }}</label>
+        <select name="camera" id="settings-camera" class="form-control"
+                ng-model="mydata.selectedVideo" ng-options="item.id as item.label for item in verto.data.videoDevices">
+        </select>
+      </div>
+
+      <div class="form-group" ng-show="mydata.useVideo">
         <label for="settings-share-device">{{ 'SHARE_DEVICE' | translate }}</label>
         <select name="share-device" id="settings-share-device" class="form-control"
                 ng-model="mydata.selectedShare" ng-options="item.id as item.label for item in verto.data.shareDevices">
@@ -28,9 +35,15 @@
         </select>
       </div>
 
+      <div class="form-group">
+        <label for="settings-framerate">{{ 'BEST_FRAME_RATE' | translate }}</label>
+        <select name="settings-framerate" id="settings-framerate" class="form-control"
+                ng-model="mydata.bestFrameRate"
+                ng-options="item.id as item.label for item in verto.framerate"></select>
+      </div>
+
       <a class="btn btn-primary" href="" ng-click="showPreview()">{{ 'PREVIEW_SETTINGS' | translate }}</a>
       <a class="btn btn-primary" href="" ng-click="refreshDeviceList()">{{ 'REFRESH_DEVICE_LIST' | translate }}</a>
-      <a class="btn btn-primary" href="" ng-click="resetSettings()">{{ 'FACTORY_RESET_SETTINGS' | translate }}</a>
     </div>
     <div class="col-md-4">
       <div class="form-group">
@@ -115,20 +128,6 @@
           <p>{{ 'REMOTE_ENCODER' | translate }}</b>
         </div>
 
-        <div class="form-group" ng-show="mydata.useVideo">
-          <label for="settings-camera">{{ 'CAMERA_SETTINGS' | translate }}</label>
-          <select name="camera" id="settings-camera" class="form-control"
-                  ng-model="mydata.selectedVideo" ng-options="item.id as item.label for item in verto.data.videoDevices">
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="settings-framerate">{{ 'BEST_FRAME_RATE' | translate }}</label>
-          <select name="settings-framerate" id="settings-framerate" class="form-control"
-                  ng-model="mydata.bestFrameRate"
-                  ng-options="item.id as item.label for item in verto.framerate"></select>
-        </div>
-
         <div class="checkbox">
           <label>
             <input type="checkbox" ng-model="mydata.autoBand" ng-change="checkAutoBand(mydata.autoBand)">
@@ -156,6 +155,8 @@
           </div>
         </div>
 
+        <a ng-show="mydata.autoBand" class="btn btn-primary" href="" ng-click="testSpeed()">{{ 'CHECK_NETWORK_SPEED' | translate }}</a> <span ng-bind="speedMsg"></span>
+
         <div ng-show="!mydata.autoBand">
           <label for="video-quality">{{ 'VIDEO_QUALITY' | translate }}</label>
           <select name="video_quality" id="video-quality" class="form-control"
@@ -180,6 +181,7 @@
                   ng-options="item.id as item.label for item in verto.bandwidth"></select>
         </div>
       </div>
+      <button class="btn btn-danger pull-left btn-pull-left" ng-click="resetSettings()">{{ 'FACTORY_RESET_SETTINGS' | translate }}</button>
     </div>
   </div>
 </div>

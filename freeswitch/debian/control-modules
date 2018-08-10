@@ -81,7 +81,7 @@ Description: Easyroute
 Module: applications/mod_enum
 Description: ENUM
  This module implements ENUM support.
-Build-Depends: libldns-fs-dev | libldns-dev
+Build-Depends: libldns-dev
 
 Module: applications/mod_esf
 Description: Multicast support
@@ -250,10 +250,6 @@ Module: applications/mod_valet_parking
 Description: Valet parking
  This module implements the valet call parking strategy.
 
-Module: applications/mod_video_filter
-Description: Video filter chromakey
- This module provides a media bug for chromakey functionality
-
 Module: applications/mod_vmd
 Description: Voicemail detection
  This module detects voicemail beeps at any frequency in O(1) time.
@@ -295,7 +291,6 @@ Description: mod_unimrcp
 Module: codecs/mod_amr
 Description: mod_amr
  Adds mod_amr.
-Build-Depends: libopencore-amrnb-dev
 
 Module: codecs/mod_amrwb
 Description: mod_amrwb
@@ -462,6 +457,11 @@ Module: endpoints/mod_skinny
 Description: mod_skinny
  Adds mod_skinny.
 
+Module: endpoints/mod_skypopen
+Description: mod_skypopen
+ Adds mod_skypopen.
+Build-Depends: libx11-dev
+
 Module: endpoints/mod_sofia
 Description: mod_sofia
  Adds mod_sofia.
@@ -507,7 +507,7 @@ Build-Depends: erlang-dev
 Module: event_handlers/mod_event_multicast
 Description: mod_event_multicast
  Adds mod_event_multicast.
-Build-Depends: libssl1.0-dev | libssl-dev
+Build-Depends: libssl-dev
 
 Module: event_handlers/mod_event_socket
 Description: mod_event_socket
@@ -650,12 +650,11 @@ Build-Depends: python-dev
 Module: languages/mod_v8
 Description: mod_v8
  Adds mod_v8.
-Build-Depends: git, libv8fs-6.1-dev
 
 Module: languages/mod_yaml
 Description: mod_yaml
  Adds mod_yaml.
-Build-Depends: libyaml-dev, libglib2.0-dev
+Build-Depends: libyaml-dev
 
 ## mod/loggers
 

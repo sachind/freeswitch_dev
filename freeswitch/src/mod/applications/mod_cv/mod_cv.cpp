@@ -35,6 +35,9 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 
+using namespace std;
+using namespace cv;
+
 #include <switch.h>
 
 #include "highgui.h"
@@ -45,14 +48,9 @@
 
 switch_loadable_module_interface_t *MODULE_INTERFACE;
 
-SWITCH_BEGIN_EXTERN_C
 SWITCH_MODULE_LOAD_FUNCTION(mod_cv_load);
 SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_cv_shutdown);
 SWITCH_MODULE_DEFINITION(mod_cv, mod_cv_load, mod_cv_shutdown, NULL);
-SWITCH_END_EXTERN_C
-
-using namespace std;
-using namespace cv;
 
 static const int NCHANNELS = 3;
 
@@ -115,7 +113,6 @@ typedef struct cv_context_s {
     int detect_event;
     int nest_detect_event;
     struct shape shape[MAX_SHAPES];
-	struct shape last_shape[MAX_SHAPES];
     int shape_idx;
     int32_t skip;
     int32_t skip_count;
@@ -135,11 +132,6 @@ typedef struct cv_context_s {
     switch_mutex_t *mutex;
     char *png_prefix;
     int tick_speed;
-	int confidence_level;
-	int max_search_w;
-	int max_search_h;
-	int neighbors;
-	double search_scale;
 } cv_context_t;
 
 
@@ -489,13 +481,6 @@ static void init_context(cv_context_t *context)
         context->png_prefix = switch_core_get_variable_pdup("cv_png_prefix", context->pool);
         context->cascade_path = switch_core_get_variable_pdup("cv_default_cascade", context->pool);
         context->nested_cascade_path = switch_core_get_variable_pdup("cv_default_nested_cascade", context->pool);
-		context->confidence_level = 20;
-		context->max_search_w = 20;
-		context->max_search_h = 20;
-		context->neighbors = 2;
-		context->search_scale = 1.1;
-
-
 
         for (int i = 0; i < MAX_OVERLAY; i++) {
             context->overlay[i] = (struct overlay *) switch_core_alloc(context->pool, sizeof(struct overlay));
@@ -561,7 +546,7 @@ static void parse_stats(struct detect_stats *stats, uint32_t size, uint64_t skip
 void detectAndDraw(cv_context_t *context)
 {
     double scale = 1;
-	Mat img = cvarrToMat(context->rawImage);
+    Mat img(context->rawImage);
 
     switch_mutex_lock(context->mutex);
 
@@ -600,21 +585,17 @@ void detectAndDraw(cv_context_t *context)
     equalizeHist( smallImg, smallImg );
 
     context->cascade->detectMultiScale( smallImg, detectedObjs,
-                                        context->search_scale, context->neighbors, 0
+                                        1.1, 2, 0
                                         |CV_HAAR_FIND_BIGGEST_OBJECT
                                         |CV_HAAR_DO_ROUGH_SEARCH
                                         |CV_HAAR_SCALE_IMAGE
                                         ,
-                                        Size(context->max_search_w, context->max_search_h) );
+                                        Size(20, 20) );
 
 
     parse_stats(&context->detected, detectedObjs.size(), context->skip);
 
     //printf("SCORE: %d %f %d\n", context->detected.simo_count, context->detected.avg, context->detected.last_score);
-
-	for (i = 0; i < context->shape_idx; i++) {
-		context->last_shape[i] = context->shape[i];
-	}
 
     context->shape_idx = 0;
     //memset(context->shape, 0, sizeof(context->shape[0]) * MAX_SHAPES);
@@ -628,7 +609,7 @@ void detectAndDraw(cv_context_t *context)
 
         double aspect_ratio = (double)r->width/r->height;
 
-        if (context->shape_idx >= 1) {//MAX_SHAPES) {
+        if (context->shape_idx >= MAX_SHAPES) {
             break;
         }
 
@@ -637,9 +618,8 @@ void detectAndDraw(cv_context_t *context)
             center.x = switch_round_to_step(cvRound((r->x + r->width*0.5)*scale), 20);
             center.y = switch_round_to_step(cvRound((r->y + r->height*0.5)*scale), 20);
             radius = switch_round_to_step(cvRound((r->width + r->height)*0.25*scale), 20);
-			
 
-            if (context->debug) {
+            if (context->debug || !context->overlay_count) {
                 circle( img, center, radius, color, 3, 8, 0 );
             }
 
@@ -661,7 +641,7 @@ void detectAndDraw(cv_context_t *context)
             context->shape[context->shape_idx].cx = context->shape[context->shape_idx].x + (context->shape[context->shape_idx].w / 2);
             context->shape[context->shape_idx].cy = context->shape[context->shape_idx].y + (context->shape[context->shape_idx].h / 2);
 
-            if (context->debug) {
+            if (context->debug || !context->overlay_count) {
                 rectangle( img, cvPoint(context->shape[context->shape_idx].x, context->shape[context->shape_idx].y),
                            cvPoint(context->shape[context->shape_idx].x2, context->shape[context->shape_idx].y2),
                            color, 3, 8, 0);
@@ -692,7 +672,6 @@ void detectAndDraw(cv_context_t *context)
 
         // Draw rectangle reflecting confidence
         const int object_neighbors = nestedObjects.size();
-		//printf("WTF %d\n", object_neighbors);
         //cout << "Detected " << object_neighbors << " object neighbors" << endl;
         const int rect_height = cvRound((float)img.rows * object_neighbors / max_neighbors);
         CvScalar col = CV_RGB((float)255 * object_neighbors / max_neighbors, 0, 0);
@@ -706,6 +685,7 @@ void detectAndDraw(cv_context_t *context)
 
     switch_mutex_unlock(context->mutex);
 }
+
 
 static switch_status_t video_thread_callback(switch_core_session_t *session, switch_frame_t *frame, void *user_data)
 {
@@ -743,30 +723,7 @@ static switch_status_t video_thread_callback(switch_core_session_t *session, swi
         switch_img_to_raw(frame->img, context->rawImage->imageData, context->rawImage->widthStep, SWITCH_IMG_FMT_RGB24);
         detectAndDraw(context);
 
-		if (context->shape_idx && context->shape[0].w && context->last_shape[0].w) {
-			int max, min;
-			int pct;
-
-			if (context->shape[0].w > context->last_shape[0].w) {
-				max = context->shape[0].w;
-				min = context->last_shape[0].w;
-			} else {
-				max = context->last_shape[0].w;
-				min = context->shape[0].w;
-			}
-
-			pct = 100 - (((double)min / (double)max) * 100.0f );
-
-			if (pct > 25) {
-				context->detected.simo_count = 0;
-				memset(context->last_shape, 0, sizeof(context->last_shape[0]) * MAX_SHAPES);
-				if (context->detect_event) {
-					context->detected.simo_miss_count = context->confidence_level;
-				}
-			}
-		}
-
-        if (context->detected.simo_count > context->confidence_level) {
+        if (context->detected.simo_count > 20) {
             if (!context->detect_event) {
                 context->detect_event = 1;
 
@@ -786,7 +743,7 @@ static switch_status_t video_thread_callback(switch_core_session_t *session, swi
 
             }
         } else {
-            if (context->detected.simo_miss_count >= context->confidence_level) {
+            if (context->detected.simo_miss_count >= 20) {
                 if (context->detect_event) {
                     if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_VIDEO_DETECT) == SWITCH_STATUS_SUCCESS) {
                         switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Detect-Type", "primary");
@@ -802,7 +759,6 @@ static switch_status_t video_thread_callback(switch_core_session_t *session, swi
 
 
                     memset(context->shape, 0, sizeof(context->shape[0]) * MAX_SHAPES);
-                    memset(context->last_shape, 0, sizeof(context->last_shape[0]) * MAX_SHAPES);
 
                     switch_channel_execute_on(channel, "execute_on_cv_detect_off_primary");
                     reset_stats(&context->nestDetected);
@@ -870,18 +826,6 @@ static switch_status_t video_thread_callback(switch_core_session_t *session, swi
         }
     }
 
-	if (context->detect_event) {
-		frame->geometry.x = context->shape[0].cx;
-		frame->geometry.y = context->shape[0].cy;
-		frame->geometry.w = context->shape[0].w;
-		frame->geometry.h = context->shape[0].h;
-		frame->geometry.M++;
-		frame->geometry.X = 0;
-	} else {
-		frame->geometry.M = 0;
-		frame->geometry.X++;
-	}
-
     if (context->overlay_count && (abs || (context->detect_event && context->shape[0].cx))) {
         for (i = 0; i < context->overlay_count; i++) {
             struct overlay *overlay = context->overlay[i];
@@ -892,7 +836,7 @@ static switch_status_t video_thread_callback(switch_core_session_t *session, swi
             int shape_w, shape_h;
             int cx, cy;
 
-            if (!overlay->png || (context->overlay[i]->abs == POS_NONE && !context->detect_event && !context->shape[0].cx)) {
+            if (context->overlay[i]->abs == POS_NONE && !context->detect_event && !context->shape[0].cx) {
                 continue;
             }
 
@@ -1007,7 +951,7 @@ static void parse_params(cv_context_t *context, int start, int argc, char **argv
             *val++ = '\0';
         }
 
-        if (name && !zstr(val)) {
+        if (name && val) {
             if (!strcasecmp(name, "xo")) {
                 context->overlay[png_idx]->xo = atof(val);
             } else if (!strcasecmp(name, "nick")) {
@@ -1045,19 +989,6 @@ static void parse_params(cv_context_t *context, int start, int argc, char **argv
                 context->skip = atoi(val);
             } else if (!strcasecmp(name, "debug")) {
                 context->debug = atoi(val);
-            } else if (!strcasecmp(name, "neighbors")) {
-				context->neighbors = atoi(val);
-            } else if (!strcasecmp(name, "max_search_w")) {
-				context->max_search_w = atoi(val);
-            } else if (!strcasecmp(name, "max_search_h")) {
-				context->max_search_h = atoi(val);
-			} else if (!strcasecmp(name, "search_scale")) {
-				double tmp = atof(val);
-				if (tmp > 1) {
-					context->search_scale = tmp;
-				}
-            } else if (!strcasecmp(name, "confidence")) {
-                context->confidence_level = atoi(val);
             } else if (!strcasecmp(name, "cascade")) {
                 context->cascade_path = switch_core_strdup(context->pool, val);
                 changed++;
@@ -1359,7 +1290,7 @@ SWITCH_STANDARD_API(cv_bug_api_function)
 		flags = SMBF_VIDEO_PATCH;
 	}
 
-    if ((status = switch_core_media_bug_add(rsession, function, NULL,
+    if ((status = switch_core_media_bug_add(rsession, function, NULL, 
 											cv_bug_callback, context, 0, flags, &bug)) != SWITCH_STATUS_SUCCESS) {
         stream->write_function(stream, "-ERR Failure!\n");
         switch_thread_rwlock_unlock(MODULE_INTERFACE->rwlock);
@@ -1395,7 +1326,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_cv_load)
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Couldn't register subclass %s!\n", MY_EVENT_VIDEO_DETECT);
 		return SWITCH_STATUS_TERM;
 	}
-
+	
     *module_interface = switch_loadable_module_create_module_interface(pool, modname);
 
     MODULE_INTERFACE = *module_interface;
@@ -1418,7 +1349,7 @@ SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_cv_shutdown)
 {
 
 	switch_event_free_subclass(MY_EVENT_VIDEO_DETECT);
-
+	
 	return SWITCH_STATUS_UNLOAD;
 }
 

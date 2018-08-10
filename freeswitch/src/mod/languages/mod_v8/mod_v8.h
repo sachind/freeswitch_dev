@@ -24,7 +24,6 @@
  * Contributor(s):
  * Peter Olsson <peter@olssononline.se>
  * Anthony Minessale II <anthm@freeswitch.org>
- * Andrey Volk <andywolk@gmail.com>
  *
  * mod_v8.h -- JavaScript FreeSWITCH module header file
  *
@@ -35,10 +34,6 @@
 
 #include "javascript.hpp"
 #include <switch.h>
-
-#if defined(V8_MAJOR_VERSION) && V8_MAJOR_VERSION >=5
-void LoadScript(v8::MaybeLocal<v8::Script> *v8_script, v8::Isolate *isolate, const char *script_data, const char *script_file);
-#endif
 
 SWITCH_BEGIN_EXTERN_C
 
@@ -64,24 +59,6 @@ typedef struct {
 } module_manager_t;
 
 extern module_manager_t module_manager;
-
-/* Struct that stores XML handler information */
-typedef struct {
-	const char *section;
-	const char *tag_name;
-	const char *key_name;
-	const char *key_value;
-	switch_event_t *params;
-	void *user_data;
-	char* XML_STRING;
-} v8_xml_handler_t;
-
-/* Struct that stores a javascript variable's name for an event */
-typedef struct {
-	const char* var_name;
-	switch_event_t *event;
-}
-v8_event_t;
 
 SWITCH_END_EXTERN_C
 

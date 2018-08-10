@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  *
  *
@@ -34,9 +34,9 @@
 
 	This module implements a generic interface for doing audio resampling it currently uses libresample but can be ported to
 	any resample library with a little effort.  I decided against making this interface pluggable because there are not many
-	options in terms of resample libraries so it seemed like a waste but I did opt to frontend the interface in case a better
+	options in terms of resample libraries so it seemed like a waste but I did opt to frontend the interface in case a better 
 	way comes along some day. =D
-
+	
 */
 #define switch_normalize_volume(x) if (x > 4) x = 4; if (x < -4) x = -4;
 #define switch_normalize_volume_granular(x) if (x > 13) x = 13; if (x < -13) x = -13;
@@ -49,7 +49,7 @@ SWITCH_BEGIN_EXTERN_C
 /*!
   \defgroup resamp Audio Resample Functions
   \ingroup core1
-  \{
+  \{ 
 */
 /*! \brief An audio resampling handle */
 	typedef struct {
@@ -177,15 +177,7 @@ SWITCH_DECLARE(void) switch_mux_channels(int16_t *data, switch_size_t samples, u
 
 #define switch_resample_calc_buffer_size(_to, _from, _srclen) ((uint32_t)(((float)_to / (float)_from) * (float)_srclen) * 2)
 
-SWITCH_DECLARE(void) switch_agc_set(switch_agc_t *agc, uint32_t energy_avg, 
-									uint32_t low_energy_point, uint32_t margin, uint32_t change_factor, uint32_t period_len);
-SWITCH_DECLARE(switch_status_t) switch_agc_create(switch_agc_t **agcP, uint32_t energy_avg, 
-												  uint32_t low_energy_point, uint32_t margin, uint32_t change_factor, uint32_t period_len);
-SWITCH_DECLARE(void) switch_agc_destroy(switch_agc_t **agcP);
-SWITCH_DECLARE(switch_status_t) switch_agc_feed(switch_agc_t *agc, int16_t *data, uint32_t samples, uint32_t channels);
-SWITCH_DECLARE(void) switch_agc_set_energy_avg(switch_agc_t *agc, uint32_t energy_avg);
-SWITCH_DECLARE(void) switch_agc_set_energy_low(switch_agc_t *agc, uint32_t low_energy_point);
-SWITCH_DECLARE(void) switch_agc_set_token(switch_agc_t *agc, const char *token);
+						 
 SWITCH_END_EXTERN_C
 #endif
 /* For Emacs:

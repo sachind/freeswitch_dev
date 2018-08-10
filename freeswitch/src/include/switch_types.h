@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2015, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Bret McDanel <trixter AT 0xdecafbad dot com>
  * Joseph Sullivan <jossulli@amazon.com>
@@ -113,7 +113,6 @@ SWITCH_BEGIN_EXTERN_C
 #define SWITCH_DEFAULT_CLID_NAME ""
 #define SWITCH_DEFAULT_CLID_NUMBER "0000000000"
 #define SWITCH_DEFAULT_DTMF_DURATION 2000
-#define SWITCH_DEFAULT_TIMEOUT 60
 #define SWITCH_MIN_DTMF_DURATION 400
 #define SWITCH_MAX_DTMF_DURATION 192000
 #define SWITCH_DEFAULT_DIR_PERMS SWITCH_FPROT_UREAD | SWITCH_FPROT_UWRITE | SWITCH_FPROT_UEXECUTE | SWITCH_FPROT_GREAD | SWITCH_FPROT_GEXECUTE
@@ -214,8 +213,6 @@ SWITCH_BEGIN_EXTERN_C
 #define SWITCH_REMOTE_VIDEO_PORT_VARIABLE "remote_video_port"
 #define SWITCH_LOCAL_VIDEO_IP_VARIABLE "local_video_ip"
 #define SWITCH_LOCAL_VIDEO_PORT_VARIABLE "local_video_port"
-#define SWITCH_LOCAL_TEXT_IP_VARIABLE "local_text_ip"
-#define SWITCH_LOCAL_TEXT_PORT_VARIABLE "local_text_port"
 #define SWITCH_HANGUP_AFTER_BRIDGE_VARIABLE "hangup_after_bridge"
 #define SWITCH_PARK_AFTER_BRIDGE_VARIABLE "park_after_bridge"
 #define SWITCH_PARK_AFTER_EARLY_BRIDGE_VARIABLE "park_after_early_bridge"
@@ -237,7 +234,6 @@ SWITCH_BEGIN_EXTERN_C
 #define SWITCH_RTCP_AUDIO_INTERVAL_MSEC "1000"
 #define SWITCH_RTCP_VIDEO_INTERVAL_MSEC "1000"
 
-#define TEXT_UNICODE_LINEFEED {0xe2, 0x80, 0xa8}
 #define MAX_FMTP_LEN 256
 
 /* Jitter */
@@ -500,8 +496,7 @@ typedef enum {
 	SWITCH_ABC_TYPE_READ_VIDEO_PING,
 	SWITCH_ABC_TYPE_WRITE_VIDEO_PING,
 	SWITCH_ABC_TYPE_STREAM_VIDEO_PING,
-	SWITCH_ABC_TYPE_VIDEO_PATCH,
-	SWITCH_ABC_TYPE_READ_TEXT
+	SWITCH_ABC_TYPE_VIDEO_PATCH
 } switch_abc_type_t;
 
 typedef struct {
@@ -583,22 +578,12 @@ typedef enum {
 typedef uint32_t switch_caller_profile_flag_t;
 
 typedef enum {
-	// flags matching libsndfile
 	SWITCH_AUDIO_COL_STR_TITLE = 0x01,
 	SWITCH_AUDIO_COL_STR_COPYRIGHT = 0x02,
 	SWITCH_AUDIO_COL_STR_SOFTWARE = 0x03,
 	SWITCH_AUDIO_COL_STR_ARTIST = 0x04,
 	SWITCH_AUDIO_COL_STR_COMMENT = 0x05,
-	SWITCH_AUDIO_COL_STR_DATE = 0x06,
-	SWITCH_AUDIO_COL_STR_ALBUM = 0x07,
-	SWITCH_AUDIO_COL_STR_LICENSE = 0x08,
-	SWITCH_AUDIO_COL_STR_TRACKNUMBER = 0x09,
-	SWITCH_AUDIO_COL_STR_GENRE = 0x10,
-
-	// custom flags
-	SWITCH_AUDIO_COL_STR_FILE_SIZE = 0xF0,
-	SWITCH_AUDIO_COL_STR_FILE_TRIMMED = 0xF1,
-	SWITCH_AUDIO_COL_STR_FILE_TRIMMED_MS = 0xF2
+	SWITCH_AUDIO_COL_STR_DATE = 0x06
 } switch_audio_col_t;
 
 typedef enum {
@@ -632,14 +617,6 @@ typedef enum {
 } switch_vad_flag_enum_t;
 typedef uint32_t switch_vad_flag_t;
 
-typedef enum {
-	SWITCH_VAD_STATE_NONE,
-	SWITCH_VAD_STATE_START_TALKING,
-	SWITCH_VAD_STATE_TALKING,
-	SWITCH_VAD_STATE_STOP_TALKING,
-	SWITCH_VAD_STATE_ERROR
-} switch_vad_state_t;
-typedef struct switch_vad_s switch_vad_t;
 
 typedef struct error_period {
 	int64_t start;
@@ -663,7 +640,7 @@ typedef struct {
 	switch_size_t flush_packet_count;
 	switch_size_t largest_jb_size;
 	/* Jitter */
-	int64_t last_proc_time;
+	int64_t last_proc_time;		
 	int64_t jitter_n;
 	int64_t jitter_add;
 	int64_t jitter_addsq;
@@ -679,7 +656,7 @@ typedef struct {
 	double mean_interval;
 	int loss[LOST_BURST_CAPTURE];
 	int last_loss;
-	int recved;
+	int recved;	
 	int last_processed_seq;
 	switch_size_t flaws;
 	switch_size_t last_flaw;
@@ -707,7 +684,7 @@ typedef struct {
 	uint16_t cycle;               /* Packet loss calculation, sequence number cycle of the current RTCP report interval */
 	uint32_t bad_seq;             /* Bad SEQ found, used to detect reset on the other side */
 	uint16_t base_seq;            /* Packet loss calculation, first sequence number received */
-	uint32_t cum_lost;            /* Packet loss calculation, cumulative number of packet lost */
+	uint32_t cum_lost;            /* Packet loss calculation, cumulative number of packet lost */ 
 	uint32_t last_recv_lsr_local; /* RTT calculation, When receiving an SR we save our local timestamp in fraction of 65536 seconds */
 	uint32_t last_recv_lsr_peer;  /* RTT calculation, When receiving an SR we extract the middle 32bits of the remote NTP timestamp to include it in the next SR LSR */
 	uint32_t init;
@@ -744,7 +721,7 @@ typedef enum {
 	SWITCH_RTP_FLAG_DATAWAIT	  - Do not return from reads unless there is data even when non blocking
 	SWITCH_RTP_FLAG_BUGGY_2833    - Emulate the bug in cisco equipment to allow interop
 	SWITCH_RTP_FLAG_PASS_RFC2833  - Pass 2833 (ignore it)
-	SWITCH_RTP_FLAG_AUTO_CNG      - Generate outbound CNG frames when idle
+	SWITCH_RTP_FLAG_AUTO_CNG      - Generate outbound CNG frames when idle    
 </pre>
  */
 typedef enum {
@@ -794,11 +771,8 @@ typedef enum {
 	SWITCH_RTP_FLAG_NACK,
 	SWITCH_RTP_FLAG_TMMBR,
 	SWITCH_RTP_FLAG_DETECT_SSRC,
-	SWITCH_RTP_FLAG_TEXT,
 	SWITCH_RTP_FLAG_OLD_FIR,
 	SWITCH_RTP_FLAG_PASSTHRU,
-	SWITCH_RTP_FLAG_SECURE_SEND_MKI,
-	SWITCH_RTP_FLAG_SECURE_RECV_MKI,
 	SWITCH_RTP_FLAG_INVALID
 } switch_rtp_flag_t;
 
@@ -824,10 +798,10 @@ typedef enum {
 		   final_duration - initial_timestamp = total_samples
 
 		   However, if the duration value exceeds the space allocated (16 bits), The sender should increment
-		   the timestamp one unit and reset the duration to 0.
+		   the timestamp one unit and reset the duration to 0. 
 
 		   Always sending a duration of 0 with a new timestamp should be tolerated but is rarely intentional
-		   and is mistakenly done by many devices.
+		   and is mistakenly done by many devices.  
 		   The issue is that the Sonus expects everyone to do it this way instead of tolerating either way.
 		   Sonus will actually ignore every packet with the same timestamp before concluding if it's DTMF.
 
@@ -845,19 +819,19 @@ typedef enum {
 
 	 */
 
-
+	
 	RTP_BUG_SEND_LINEAR_TIMESTAMPS = (1 << 3),
 
 	/*
 	  Our friends at Sonus get real mad when the timestamps are not in perfect sequence even during periods of silence.
 	  With this flag, we will only increment the timestamp when write packets even if they are eons apart.
-
+	  
 	 */
 
 	RTP_BUG_START_SEQ_AT_ZERO = (1 << 4),
 
 	/*
-	  Our friends at Sonus also get real mad if the sequence number does not start at 0.
+	  Our friends at Sonus also get real mad if the sequence number does not start at 0.  
 	  Typically, we set this to a random starting value for your saftey.
 	  This is a security risk you take upon yourself when you enable this flag.
 	 */
@@ -869,9 +843,9 @@ typedef enum {
 	  Our friends at Sonus are on a roll, They also get easily dumbfounded by marker bits.
 	  This flag will never send any. Sheesh....
 	 */
-
+	
 	RTP_BUG_IGNORE_DTMF_DURATION = (1 << 6),
-
+	
 	/*
 	  Guess Who? ... Yep, Sonus (and who know's who else) likes to interweave DTMF with the audio stream making it take
 	  2X as long as it should and sending an incorrect duration making the DTMF very delayed.
@@ -910,12 +884,12 @@ typedef enum {
 	 */
 
 	RTP_BUG_FLUSH_JB_ON_DTMF = (1 << 10),
-
+	
 	/* FLUSH JITTERBUFFER When getting RFC2833 to reduce bleed through */
 
 	RTP_BUG_ACCEPT_ANY_PAYLOAD = (1 << 11),
 
-	/*
+	/* 
 	  Make FS accept any payload type instead of dropping and returning CNG frame. Workaround while FS only supports a single payload per rtp session.
 	  This can be used by endpoint modules to detect payload changes and act appropriately (ex: sofia could send a reINVITE with single codec).
 	  This should probably be a flag, but flag enum is already full!
@@ -1051,7 +1025,7 @@ typedef uint32_t switch_ivr_option_t;
 	SWITCH_MESSAGE_REDIRECT_AUDIO     - Indication to redirect audio to another location if possible
 	SWITCH_MESSAGE_TRANSMIT_TEXT      - A text message
 	SWITCH_MESSAGE_INDICATE_ANSWER    - indicate answer
-	SWITCH_MESSAGE_INDICATE_PROGRESS  - indicate progress
+	SWITCH_MESSAGE_INDICATE_PROGRESS  - indicate progress 
 	SWITCH_MESSAGE_INDICATE_BRIDGE    - indicate a bridge starting
 	SWITCH_MESSAGE_INDICATE_UNBRIDGE  - indicate a bridge ending
 	SWITCH_MESSAGE_INDICATE_TRANSFER  - indicate a transfer is taking place
@@ -1071,7 +1045,6 @@ typedef enum {
 	SWITCH_MESSAGE_REDIRECT_AUDIO,
 	SWITCH_MESSAGE_TRANSMIT_TEXT,
 	SWITCH_MESSAGE_INDICATE_ANSWER,
-	SWITCH_MESSAGE_INDICATE_ACKNOWLEDGE_CALL,
 	SWITCH_MESSAGE_INDICATE_PROGRESS,
 	SWITCH_MESSAGE_INDICATE_BRIDGE,
 	SWITCH_MESSAGE_INDICATE_UNBRIDGE,
@@ -1359,7 +1332,7 @@ typedef enum {
 <pre>
 CF_ANSWERED			- Channel is answered
 CF_OUTBOUND			- Channel is an outbound channel
-CF_EARLY_MEDIA		- Channel is ready for audio before answer
+CF_EARLY_MEDIA		- Channel is ready for audio before answer 
 CF_ORIGINATOR		- Channel is an originator
 CF_TRANSFER			- Channel is being transfered
 CF_ACCEPT_CNG		- Channel will accept CNG frames
@@ -1399,9 +1372,6 @@ typedef enum {
 	CC_JITTERBUFFER,
 	CC_FS_RTP,
 	CC_QUEUEABLE_DTMF_DELAY,
-	CC_IO_OVERRIDE,
-	CC_RTP_RTT,
-	CC_MSRP,
 	/* WARNING: DO NOT ADD ANY FLAGS BELOW THIS LINE */
 	CC_FLAG_MAX
 } switch_channel_cap_t;
@@ -1549,26 +1519,6 @@ typedef enum {
 	CF_3P_NOMEDIA_REQUESTED_BLEG,
 	CF_IMAGE_SDP,
 	CF_VIDEO_SDP_RECVD,
-	CF_TEXT_SDP_RECVD,
-	CF_HAS_TEXT,
-	CF_TEXT_POSSIBLE,
-	CF_TEXT_PASSIVE,
-	CF_TEXT_ECHO,
-	CF_TEXT_ACTIVE,
-	CF_TEXT_IDLE,
-	CF_TEXT_LINE_BASED,
-	CF_QUEUE_TEXT_EVENTS,
-	CF_FIRE_TEXT_EVENTS,
-	CF_MSRP,
-	CF_MSRPS,
-	CF_WANT_MSRP,
-	CF_WANT_MSRPS,
-	CF_RTT,
-	CF_WANT_RTT,
-	CF_AUDIO,
-	CF_AWAITING_STREAM_CHANGE,
-	CF_PROCESSING_STREAM_CHANGE,
-	CF_STREAM_CHANGED,
 	/* WARNING: DO NOT ADD ANY FLAGS BELOW THIS LINE */
 	/* IF YOU ADD NEW ONES CHECK IF THEY SHOULD PERSIST OR ZERO THEM IN switch_core_session.c switch_core_session_request_xml() */
 	CF_FLAG_MAX
@@ -1629,8 +1579,6 @@ typedef enum {
 	SFF_SAME_IMAGE = (1 << 15),
 	SFF_USE_VIDEO_TIMESTAMP = (1 << 16),
 	SFF_ENCODED = (1 << 17),
-	SFF_TEXT_LINE_BREAK = (1 << 18),
-	SFF_IS_KEYFRAME = (1 << 19),
 	SFF_EXTERNAL = (1 << 20)
 } switch_frame_flag_enum_t;
 typedef uint32_t switch_frame_flag_t;
@@ -1642,8 +1590,7 @@ typedef enum {
 	SAF_ROUTING_EXEC = (1 << 1),
 	SAF_MEDIA_TAP = (1 << 2),
 	SAF_ZOMBIE_EXEC = (1 << 3),
-	SAF_NO_LOOPBACK = (1 << 4),
-	SAF_SUPPORT_TEXT_ONLY = (1 << 5)
+	SAF_NO_LOOPBACK = (1 << 4)
 } switch_application_flag_enum_t;
 typedef uint32_t switch_application_flag_t;
 
@@ -1707,7 +1654,7 @@ typedef uint32_t switch_codec_flag_t;
 SWITCH_SPEECH_FLAG_HASTEXT =		(1 <<  0) - Interface is has text to read.
 SWITCH_SPEECH_FLAG_PEEK =			(1 <<  1) - Read data but do not erase it.
 SWITCH_SPEECH_FLAG_FREE_POOL =		(1 <<  2) - Free interface's pool on destruction.
-SWITCH_SPEECH_FLAG_BLOCKING =       (1 <<  3) - Indicate that a blocking call is desired
+SWITCH_SPEECH_FLAG_BLOCKING =       (1 <<  3) - Indicate that a blocking call is desired 
 SWITCH_SPEECH_FLAG_PAUSE = 			(1 <<  4) - Pause toggle for playback
 </pre>
 */
@@ -1777,10 +1724,9 @@ typedef enum {
 
 typedef enum {
 	SWITCH_MEDIA_TYPE_AUDIO,
-	SWITCH_MEDIA_TYPE_VIDEO,
-	SWITCH_MEDIA_TYPE_TEXT
+	SWITCH_MEDIA_TYPE_VIDEO
 } switch_media_type_t;
-#define SWITCH_MEDIA_TYPE_TOTAL 3
+#define SWITCH_MEDIA_TYPE_TOTAL 2
 
 
 /*!
@@ -1808,8 +1754,8 @@ SMBF_STEREO - Record in stereo
 SMBF_ANSWER_REQ - Don't record until the channel is answered
 SMBF_BRIDGE_REQ - Don't record until the channel is bridged
 SMBF_THREAD_LOCK - Only let the same thread who created the bug remove it.
-SMBF_PRUNE -
-SMBF_NO_PAUSE -
+SMBF_PRUNE - 
+SMBF_NO_PAUSE - 
 SMBF_STEREO_SWAP - Record in stereo: Write Stream - left channel, Read Stream - right channel
 </pre>
 */
@@ -1839,8 +1785,7 @@ typedef enum {
 	SMBF_VIDEO_PATCH = (1 << 21),
 	SMBF_SPY_VIDEO_STREAM = (1 << 22),
 	SMBF_SPY_VIDEO_STREAM_BLEG = (1 << 23),
-	SMBF_READ_VIDEO_PATCH = (1 << 24),
-	SMBF_READ_TEXT_STREAM = (1 << 25)
+	SMBF_READ_VIDEO_PATCH = (1 << 24)
 } switch_media_bug_flag_enum_t;
 typedef uint32_t switch_media_bug_flag_t;
 
@@ -1891,8 +1836,7 @@ typedef enum {
 	SWITCH_IO_FLAG_NONE = 0,
 	SWITCH_IO_FLAG_NOBLOCK = (1 << 0),
 	SWITCH_IO_FLAG_SINGLE_READ = (1 << 1),
-	SWITCH_IO_FLAG_FORCE = (1 << 2),
-	SWITCH_IO_FLAG_QUEUED = (1 << 3)
+	SWITCH_IO_FLAG_FORCE = (1 << 2)
 } switch_io_flag_enum_t;
 typedef uint32_t switch_io_flag_t;
 
@@ -1953,7 +1897,7 @@ typedef uint32_t switch_io_flag_t;
     SWITCH_EVENT_BACKGROUND_JOB		- Background Job
     SWITCH_EVENT_DETECTED_SPEECH	- Detected Speech
     SWITCH_EVENT_DETECTED_TONE      - Detected Tone
-    SWITCH_EVENT_PRIVATE_COMMAND	- A private command event
+    SWITCH_EVENT_PRIVATE_COMMAND	- A private command event 
     SWITCH_EVENT_HEARTBEAT			- Machine is alive
     SWITCH_EVENT_TRAP				- Error Trap
     SWITCH_EVENT_ADD_SCHEDULE		- Something has been scheduled
@@ -2087,7 +2031,6 @@ typedef enum {
 	SWITCH_EVENT_CALL_SETUP_RESULT,
 	SWITCH_EVENT_CALL_DETAIL,
 	SWITCH_EVENT_DEVICE_STATE,
-	SWITCH_EVENT_TEXT,
 	SWITCH_EVENT_ALL
 } switch_event_types_t;
 
@@ -2303,15 +2246,13 @@ typedef struct switch_console_callback_match switch_console_callback_match_t;
 typedef void (*switch_media_bug_exec_cb_t)(switch_media_bug_t *bug, void *user_data);
 
 typedef switch_status_t (*switch_core_video_thread_callback_func_t) (switch_core_session_t *session, switch_frame_t *frame, void *user_data);
-typedef switch_status_t (*switch_core_text_thread_callback_func_t) (switch_core_session_t *session, switch_frame_t *frame, void *user_data);
 typedef void (*switch_cap_callback_t) (const char *var, const char *val, void *user_data);
 typedef switch_status_t (*switch_console_complete_callback_t) (const char *, const char *, switch_console_callback_match_t **matches);
 typedef switch_bool_t (*switch_media_bug_callback_t) (switch_media_bug_t *, void *, switch_abc_type_t);
 typedef switch_bool_t (*switch_tone_detect_callback_t) (switch_core_session_t *, const char *, const char *);
 typedef struct switch_xml_binding switch_xml_binding_t;
 
-typedef void (*switch_engine_function_t) (switch_core_session_t *session, void *user_data);
-
+typedef void (*switch_video_function_t) (switch_core_session_t *session, void *user_data);
 
 typedef switch_status_t (*switch_core_codec_encode_func_t) (switch_codec_t *codec,
 															switch_codec_t *other_codec,
@@ -2353,15 +2294,15 @@ typedef enum {
 	SWITCH_IO_WRITE
 } switch_io_type_t;
 
-typedef switch_status_t (*switch_core_codec_control_func_t) (switch_codec_t *codec,
-																   switch_codec_control_command_t cmd,
+typedef switch_status_t (*switch_core_codec_control_func_t) (switch_codec_t *codec, 
+																   switch_codec_control_command_t cmd, 
 																   switch_codec_control_type_t ctype,
 																   void *cmd_data,
 																   switch_codec_control_type_t atype,
 																   void *cmd_arg,
 																   switch_codec_control_type_t *rtype,
 																   void **ret_data);
-
+																   
 
 typedef switch_status_t (*switch_core_codec_init_func_t) (switch_codec_t *, switch_codec_flag_t, const switch_codec_settings_t *codec_settings);
 typedef switch_status_t (*switch_core_codec_fmtp_parse_func_t) (const char *fmtp, switch_codec_fmtp_t *codec_fmtp);
@@ -2472,7 +2413,7 @@ typedef switch_status_t (*switch_say_callback_t) (switch_core_session_t *session
 typedef switch_status_t (*switch_say_string_callback_t) (switch_core_session_t *session,
 														 char *tosay,
 														 switch_say_args_t *say_args, char **rstr);
-
+														 
 struct switch_say_file_handle;
 typedef struct switch_say_file_handle switch_say_file_handle_t;
 
@@ -2586,12 +2527,6 @@ typedef enum {
 	CRYPTO_INVALID
 } switch_rtp_crypto_key_type_t;
 
-/* Keep in sync with CRYPTO_KEY_PARAM_METHOD table. */
-typedef enum {
-	CRYPTO_KEY_PARAM_METHOD_INLINE,											/* identified by "inline" chars in SRTP key parameter */
-	CRYPTO_KEY_PARAM_METHOD_INVALID
-} switch_rtp_crypto_key_param_method_type_t;
-
 typedef struct payload_map_s {
 	switch_media_type_t type;
 	switch_sdp_type_t sdp_type;
@@ -2692,14 +2627,6 @@ typedef enum {
 	SCFC_RESUME_WRITE
 } switch_file_command_t;
 
-
-struct switch_rtp_text_factory_s;
-typedef struct switch_rtp_text_factory_s  switch_rtp_text_factory_t;
-typedef struct switch_agc_s switch_agc_t;
-
-struct switch_chromakey_s;
-typedef struct switch_chromakey_s switch_chromakey_t;
-
 typedef enum {
 	SWITCH_VIDEO_ENCODE_SPEED_DEFAULT = 0,
 	SWITCH_VIDEO_ENCODE_SPEED_FAST = 0,
@@ -2735,56 +2662,6 @@ typedef struct switch_mm_s {
 	char *auth_password;
 } switch_mm_t;
 
-#define SWITCH_RTP_MAX_CRYPTO_LEN 64
-
-/* If MKI is used, then one or more key-materials are present in the <key-params> section of the crypto attribute.
- * This struct describes the single MKI entry (key-material) within <key-params> section of crypto attribute.
- * Key-material follows the format:
- *		"inline:" <key||salt> ["|" lifetime] ["|" MKI ":" length]
- * which translates to
- *		"inline: KEYSALT|MKI_ID:MKI_SZ" or "inline: KEYSALT|LIFETIME|MKI_ID:MKI_SZ" */
-typedef struct switch_crypto_key_material_s {
-	switch_rtp_crypto_key_param_method_type_t	method;
-	unsigned char								raw_key[SWITCH_RTP_MAX_CRYPTO_LEN];	/* Key-salt. Master key appended with salt. Sizes determined by crypto suite. */
-	char										*crypto_key;						/* Complete key material string ("method:keysalt[|lifetime]|mki"). */
-	uint64_t									lifetime;	/* OPTIONAL. The lifetime value MAY be written as a non-zero, positive decimal integer or as a power of 2. Must be less than max lifetime of RTP and RTCP packets in given crypto suite. */
-	unsigned int								mki_id;		/* OPTIONAL. */
-	unsigned int								mki_size;	/* OPTIONAL. Byte length of the master key field in the RTP packet. */
-	struct switch_crypto_key_material_s			*next;		/* NULL if this is the last master key in crypto attribute set. */
-} switch_crypto_key_material_t;
-
-typedef struct secure_settings_s {
-	int crypto_tag;
-	unsigned char local_raw_key[SWITCH_RTP_MAX_CRYPTO_LEN];
-	unsigned char remote_raw_key[SWITCH_RTP_MAX_CRYPTO_LEN];
-	switch_rtp_crypto_key_type_t crypto_type;
-	char *local_crypto_key;
-	char *remote_crypto_key;
-
-	/* 
-	 * MKI support (as per rfc4568).
-	 * Normally single crypto attribute contains one key-material in a <key-params> section, e.g. "inline: KEYSALT" or "inline: KEYSALT|2^LIFETIME_BITS".
-	 * But if MKI is used, then one or more key-materials are present in the <key-params> section of the crypto attribute. Each key-material follows the format:
-	 *
-	 * "inline:" <key||salt> ["|" lifetime] ["|" MKI ":" length]
-	 *
-	 *		"inline: KEYSALT|MKI_ID:MKI_SZ"
-	 * or
-	 *		"inline: KEYSALT|2^LIFETIME_BITS|MKI_ID:MKI_SZ"
-	 *
-	 * This points to singly linked list of key-material descriptions if there is more than one key-material present in this crypto attribute (this key is inserted as the head of the list in that case), or to NULL otherwise.
-	 */
-	struct switch_crypto_key_material_s	*local_key_material_next;		/* NULL if MKI not used for crypto set on outbound SRTP. */
-	unsigned long						local_key_material_n;			/* number of key_materials in the linked list for outbound SRTP */
-	struct switch_crypto_key_material_s	*remote_key_material_next;		/* NULL if MKI not used for crypto set on inbound SRTP. */
-	unsigned long						remote_key_material_n;			/* number of key_materials in the linked list for inbound SRTP */
-} switch_secure_settings_t;
-
-/* Default MKI index used for packets send from FS. We always use first key if multiple master keys are present in the crypto attribute. */ 
-#define SWITCH_CRYPTO_MKI_INDEX 0
-
-/* max number of MKI in a single crypto line supported */
-#define SWITCH_CRYPTO_MKI_MAX	20
 
 SWITCH_END_EXTERN_C
 #endif

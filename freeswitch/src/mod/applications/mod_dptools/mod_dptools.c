@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2015, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Ken Rice <krice@freeswitch.org>
  * Michael Murdock <mike at mmurdock dot org>
@@ -129,7 +129,7 @@ static switch_status_t digit_nomatch_action_callback(switch_ivr_dmachine_match_t
 
 	switch_channel_set_variable(channel, "last_non_matching_digits", match->match_digits);
 
-	switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(use_session), SWITCH_LOG_DEBUG, "%s Digit NOT match binding [%s]\n",
+	switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(use_session), SWITCH_LOG_DEBUG, "%s Digit NOT match binding [%s]\n", 
 					  switch_channel_get_name(channel), match->match_digits);
 
 	if (switch_event_create_plain(&event, SWITCH_EVENT_CHANNEL_DATA) == SWITCH_STATUS_SUCCESS) {
@@ -137,14 +137,14 @@ static switch_status_t digit_nomatch_action_callback(switch_ivr_dmachine_match_t
 
 		if ((status = switch_core_session_queue_event(use_session, &event)) != SWITCH_STATUS_SUCCESS) {
 			switch_event_destroy(&event);
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(use_session), SWITCH_LOG_WARNING, "%s event queue failure.\n",
+			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(use_session), SWITCH_LOG_WARNING, "%s event queue failure.\n", 
 							  switch_core_session_get_name(use_session));
 		}
 	}
 
 	/* send it back around and skip the dmachine */
 	switch_channel_queue_dtmf_string(channel, match->match_digits);
-
+	
 	if (use_session != session) {
 		switch_core_session_rwunlock(use_session);
 	}
@@ -166,7 +166,7 @@ static switch_status_t digit_action_callback(switch_ivr_dmachine_match_t *match)
 	int x = 0;
 	char *flags = "";
 
-	if (act->target == DIGIT_TARGET_PEER || act->target == DIGIT_TARGET_BOTH) {
+	if (switch_ivr_dmachine_get_target(match->dmachine) == DIGIT_TARGET_PEER || act->target == DIGIT_TARGET_PEER || act->target == DIGIT_TARGET_BOTH) {
 		if (switch_core_session_get_partner(act->session, &use_session) != SWITCH_STATUS_SUCCESS) {
 			use_session = act->session;
 		}
@@ -183,14 +183,14 @@ static switch_status_t digit_action_callback(switch_ivr_dmachine_match_t *match)
 
 	switch_channel_set_variable(channel, "last_matching_digits", match->match_digits);
 
-
+	
 	if (switch_event_create_plain(&event, SWITCH_EVENT_CHANNEL_DATA) == SWITCH_STATUS_SUCCESS) {
-		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(act->session), SWITCH_LOG_DEBUG, "%s Digit match binding [%s][%s]\n",
+		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(act->session), SWITCH_LOG_DEBUG, "%s Digit match binding [%s][%s]\n", 
 						  switch_channel_get_name(channel), act->string, act->value);
 
 		if (!strncasecmp(string, "exec", 4)) {
 			char *e;
-
+			
 			string += 4;
 			if (*string == ':') {
 				string++;
@@ -220,7 +220,7 @@ static switch_status_t digit_action_callback(switch_ivr_dmachine_match_t *match)
 
 		if ((status = switch_core_session_queue_event(use_session, &event)) != SWITCH_STATUS_SUCCESS) {
 			switch_event_destroy(&event);
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(use_session), SWITCH_LOG_WARNING, "%s event queue failure.\n",
+			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(use_session), SWITCH_LOG_WARNING, "%s event queue failure.\n", 
 							  switch_core_session_get_name(use_session));
 		}
 	}
@@ -244,7 +244,7 @@ static switch_status_t digit_action_callback(switch_ivr_dmachine_match_t *match)
 		switch_api_execute(string, act->value, NULL, &stream);
 		if (stream.data) {
 			switch_channel_set_variable(channel, "bind_digit_action_api_result", (char *)stream.data);
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(act->session), SWITCH_LOG_DEBUG, "%s Digit match binding [%s][%s] api executed, %s\n",
+			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(act->session), SWITCH_LOG_DEBUG, "%s Digit match binding [%s][%s] api executed, %s\n", 
 				switch_core_session_get_name(use_session), act->string, act->value, (char *)stream.data);
 		} else {
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(act->session), SWITCH_LOG_DEBUG, "%s Digit match binding [%s][%s] api executed\n",
@@ -252,7 +252,7 @@ static switch_status_t digit_action_callback(switch_ivr_dmachine_match_t *match)
 		}
 		switch_safe_free(stream.data);
 	}
-
+	
 
 	if (use_session != act->session) {
 		switch_core_session_rwunlock(use_session);
@@ -275,7 +275,7 @@ static switch_digit_action_target_t str2target(const char *target_str)
 	if (!strcasecmp(target_str, "both")) {
 		return DIGIT_TARGET_BOTH;
 	}
-
+	
 	return DIGIT_TARGET_SELF;
 }
 
@@ -286,7 +286,7 @@ SWITCH_STANDARD_APP(clear_digit_action_function)
 	switch_ivr_dmachine_t *dmachine;
 	char *realm = NULL;
 	char *target_str;
-	switch_digit_action_target_t t, target = DIGIT_TARGET_SELF;
+	switch_digit_action_target_t target = DIGIT_TARGET_SELF;
 
 	if (zstr((char *)data)) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "clear_digit_action called with no args");
@@ -300,26 +300,15 @@ SWITCH_STANDARD_APP(clear_digit_action_function)
 		target = str2target(target_str);
 	}
 
-clear_next:
-	if (target == DIGIT_TARGET_BOTH) {
-		t = DIGIT_TARGET_PEER;
-	} else {
-		t = target;
-	}
 
-	if ((dmachine = switch_core_session_get_dmachine(session, t))) {
+	if ((dmachine = switch_core_session_get_dmachine(session, target))) {
 		if (zstr(realm) || !strcasecmp(realm, "all")) {
 			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Digit parser %s: Clearing all realms\n", switch_ivr_dmachine_get_name(dmachine));
-			switch_core_session_set_dmachine(session, NULL, t);
+			switch_core_session_set_dmachine(session, NULL, target);
 			switch_ivr_dmachine_destroy(&dmachine);
 		} else {
 			switch_ivr_dmachine_clear_realm(dmachine, realm);
 		}
-	}
-
-	if (target == DIGIT_TARGET_BOTH) {
-			target = DIGIT_TARGET_SELF;
-			goto clear_next;
 	}
 }
 
@@ -341,7 +330,7 @@ SWITCH_STANDARD_APP(digit_action_set_realm_function)
 		return;
 	}
 
-
+	
 	if ((dmachine = switch_core_session_get_dmachine(session, target))) {
 		switch_ivr_dmachine_set_realm(dmachine, realm);
 	}
@@ -349,7 +338,7 @@ SWITCH_STANDARD_APP(digit_action_set_realm_function)
 }
 
 
-static void bind_to_session(switch_core_session_t *session,
+static void bind_to_session(switch_core_session_t *session, 
 							const char *arg0, const char *arg1, const char *arg2, const char *arg3,
 							switch_digit_action_target_t target, switch_digit_action_target_t bind_target)
 {
@@ -357,7 +346,6 @@ static void bind_to_session(switch_core_session_t *session,
 	switch_ivr_dmachine_t *dmachine;
 	switch_channel_t *channel = switch_core_session_get_channel(session);
 	const char *terminators = NULL;
-	switch_byte_t is_priority = 0;
 
 	if (!(dmachine = switch_core_session_get_dmachine(session, target))) {
 		uint32_t digit_timeout = 1500;
@@ -367,16 +355,16 @@ static void bind_to_session(switch_core_session_t *session,
 		if ((var = switch_channel_get_variable(channel, "bind_digit_digit_timeout"))) {
 			digit_timeout = switch_atoul(var);
 		}
-
+		
 		if ((var = switch_channel_get_variable(channel, "bind_digit_input_timeout"))) {
 			input_timeout = switch_atoul(var);
 		}
-
+		
 		switch_ivr_dmachine_create(&dmachine, "DPTOOLS", NULL, digit_timeout, input_timeout, NULL, digit_nomatch_action_callback, session);
 		switch_core_session_set_dmachine(session, dmachine, target);
 	}
 
-
+	
 	act = switch_core_session_alloc(session, sizeof(*act));
 	act->realm = switch_core_session_strdup(session, arg0);
 	act->input = switch_core_session_strdup(session, arg1);
@@ -384,26 +372,7 @@ static void bind_to_session(switch_core_session_t *session,
 	act->value = switch_core_session_strdup(session, arg3);
 	act->target = bind_target;
 	act->session = session;
-
-	if (!strncasecmp(act->string, "exec", 4) || !strncasecmp(act->string, "api:", 4)) {
-		char *flags, *e;
-		char *string = switch_core_session_strdup(session, act->string);
-
-		string += 4;
-		if (*string == '[') {
-			flags = string;
-			if ((e = switch_find_end_paren(flags, '[', ']'))) {
-				if (e && *(e+1) == ':') {
-					flags++;
-					*e = '\0';
-					if (strchr(flags, 'P'))
-						is_priority = 1;
-				}
-			}
-		}
-	}
-
-	switch_ivr_dmachine_bind(dmachine, act->realm, act->input, is_priority, 0, digit_action_callback, act);
+	switch_ivr_dmachine_bind(dmachine, act->realm, act->input, 0, digit_action_callback, act);
 
 	if ((terminators = switch_channel_get_variable(channel, "bda_terminators"))) {
 		switch_ivr_dmachine_set_terminators(dmachine, terminators);
@@ -494,10 +463,7 @@ SWITCH_STANDARD_APP(detect_speech_function)
 			switch_ivr_stop_detect_speech(session);
 		} else if (!strcasecmp(argv[0], "param")) {
 			switch_ivr_set_param_detect_speech(session, argv[1], argv[2]);
-		} else if (!strcasecmp(argv[0], "start-input-timers")) {
-			switch_ivr_detect_speech_start_input_timers(session);
 		} else if (!strcasecmp(argv[0], "start_input_timers")) {
-			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "start_input_timers is deprecated, please use start-input-timers instead!\n");
 			switch_ivr_detect_speech_start_input_timers(session);
 		} else if (argc >= 3) {
 			switch_ivr_detect_speech(session, argv[0], argv[1], argv[2], argv[3], NULL);
@@ -620,7 +586,7 @@ SWITCH_STANDARD_APP(keepalive_function)
 			msg.message_id = SWITCH_MESSAGE_INDICATE_KEEPALIVE;
 			msg.numeric_arg = seconds;
 			switch_core_session_receive_message(session, &msg);
-
+			
 			switch_core_session_enable_heartbeat(session, seconds);
 			return;
 		}
@@ -660,15 +626,10 @@ SWITCH_STANDARD_APP(rename_function)
 
 	if (!zstr(data) && (lbuf = switch_core_session_strdup(session, data))
 		&& switch_split(lbuf, ' ', argv) == 2) {
-
+		switch_file_rename(argv[0], argv[1], switch_core_session_get_pool(session));
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s RENAME: %s %s\n",
 						  switch_channel_get_name(switch_core_session_get_channel(session)), argv[0], argv[1]);
-
-		if (switch_file_rename(argv[0], argv[1], switch_core_session_get_pool(session)) != SWITCH_STATUS_SUCCESS) {
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s Can't rename %s to %s\n",
-							switch_channel_get_name(switch_core_session_get_channel(session)), argv[0], argv[1]);
-		}
-
+	
 	} else {
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Usage: %s\n", RENAME_SYNTAX);
 	}
@@ -680,7 +641,7 @@ SWITCH_STANDARD_APP(transfer_vars_function)
 	char *argv[1] = { 0 };
 	int argc;
 	char *lbuf = NULL;
-
+	
 	if (!zstr(data) && (lbuf = switch_core_session_strdup(session, data))
 		&& (argc = switch_separate_string(lbuf, ' ', argv, (sizeof(argv) / sizeof(argv[0])))) >= 1) {
 		switch_core_session_t *nsession = NULL;
@@ -930,7 +891,7 @@ SWITCH_STANDARD_APP(eavesdrop_function)
 					switch_safe_free(e_data.uuid_list[x]);
 				}
 				e_data.total = 0;
-
+				
 				if (switch_core_db_handle(&db) != SWITCH_STATUS_SUCCESS) {
 					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Database Error!\n");
 					break;
@@ -1054,15 +1015,6 @@ SWITCH_STANDARD_APP(set_mute_function)
 
 }
 
-SWITCH_STANDARD_APP(capture_text_function)
-{
-	switch_ivr_capture_text(session, switch_true((char *)data));
-}
-
-SWITCH_STANDARD_APP(acknowledge_call_function)
-{
-	switch_channel_acknowledge_call(switch_core_session_get_channel(session));
-}
 
 SWITCH_STANDARD_APP(ring_ready_function)
 {
@@ -1072,7 +1024,7 @@ SWITCH_STANDARD_APP(ring_ready_function)
 			return;
 		}
 	}
-
+	
 	switch_channel_ring_ready(switch_core_session_get_channel(session));
 }
 
@@ -1198,7 +1150,7 @@ SWITCH_STANDARD_APP(sched_transfer_function)
 
 			id = switch_ivr_schedule_transfer(when, switch_core_session_get_uuid(session), argv[1], argv[2], argv[3]);
 			snprintf(ids, sizeof(ids), "%u", id);
-			switch_channel_set_variable(switch_core_session_get_channel(session), "last_sched_id", ids);
+			switch_channel_set_variable(switch_core_session_get_channel(session), "last_sched_id", ids);			
 		} else {
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Invalid Args\n");
 		}
@@ -1393,7 +1345,7 @@ SWITCH_STANDARD_APP(pre_answer_function)
 {
 	switch_channel_t *channel = switch_core_session_get_channel(session);
 	const char *arg = (char *) data;
-
+	
 	if (!zstr(arg)) {
 		if (switch_stristr("is_conference", arg)) {
 			switch_channel_set_flag(channel, CF_CONFERENCE);
@@ -1515,9 +1467,7 @@ SWITCH_STANDARD_APP(respond_function)
 SWITCH_STANDARD_APP(deflect_function)
 {
 	switch_core_session_message_t msg = { 0 };
-	switch_channel_t *channel = switch_core_session_get_channel(session);
 
-	switch_channel_wait_for_flag(channel, CF_MEDIA_ACK, SWITCH_TRUE, 10000, NULL);
 	/* Tell the channel to deflect the call */
 	msg.from = __FILE__;
 	msg.string_arg = data;
@@ -1595,9 +1545,9 @@ static void base_set (switch_core_session_t *session, const char *data, switch_s
 			expanded = switch_channel_expand_variables(channel, val);
 		}
 
-		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s %s [%s]=[%s]\n",
+		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s %s [%s]=[%s]\n", 
 						  what, switch_channel_get_name(channel), var, expanded ? expanded : "UNDEF");
-
+						  
 		switch_channel_add_variable_var_check(channel, var, expanded, SWITCH_FALSE, stack);
 
 		if (expanded && expanded != val) {
@@ -1622,11 +1572,11 @@ SWITCH_STANDARD_APP(multiset_function)
 
 		arg = switch_core_session_strdup(session, arg);
 		argc = switch_split(arg, delim, array);
-
+		
 		for(i = 0; i < argc; i++) {
 			base_set(session, array[i], SWITCH_STACK_BOTTOM);
 		}
-
+		
 
 	} else {
 		base_set(session, data, SWITCH_STACK_BOTTOM);
@@ -1969,7 +1919,7 @@ SWITCH_STANDARD_API(strftime_api_function)
 
 	if (!zstr(q) && (p = strchr(q, '|'))) {
 		*p++ = '\0';
-
+		
 		thetime = switch_time_make(atol(q), 0);
 		q = p + 1;
 	} else {
@@ -2262,7 +2212,7 @@ SWITCH_STANDARD_APP(park_state_function)
 /********************************************************************************/
 
 /*
-  dtmf handler function you can hook up to be executed when a digit is dialed during playback
+  dtmf handler function you can hook up to be executed when a digit is dialed during playback 
    if you return anything but SWITCH_STATUS_SUCCESS the playback will stop.
 */
 static switch_status_t bridge_on_dtmf(switch_core_session_t *session, void *input, switch_input_type_t itype, void *buf, unsigned int buflen)
@@ -2408,15 +2358,10 @@ SWITCH_STANDARD_APP(speak_function)
 	switch_ivr_speak_text(session, engine, voice, text, &args);
 }
 
-struct att_keys {
-	const char *attxfer_cancel_key;
-	const char *attxfer_hangup_key;
-	const char *attxfer_conf_key;
-};
-
 static switch_status_t xfer_on_dtmf(switch_core_session_t *session, void *input, switch_input_type_t itype, void *buf, unsigned int buflen)
 {
 	switch_core_session_t *peer_session = (switch_core_session_t *) buf;
+
 	if (!buf || !peer_session) {
 		return SWITCH_STATUS_SUCCESS;
 	}
@@ -2427,19 +2372,18 @@ static switch_status_t xfer_on_dtmf(switch_core_session_t *session, void *input,
 			switch_dtmf_t *dtmf = (switch_dtmf_t *) input;
 			switch_channel_t *channel = switch_core_session_get_channel(session);
 			switch_channel_t *peer_channel = switch_core_session_get_channel(peer_session);
-			struct att_keys *keys = switch_channel_get_private(channel, "__keys");
 
-			if (dtmf->digit == *keys->attxfer_hangup_key) {
+			if (dtmf->digit == '*') {
 				switch_channel_hangup(channel, SWITCH_CAUSE_NORMAL_CLEARING);
 				return SWITCH_STATUS_FALSE;
 			}
 
-			if (dtmf->digit == *keys->attxfer_cancel_key) {
+			if (dtmf->digit == '#') {
 				switch_channel_hangup(peer_channel, SWITCH_CAUSE_NORMAL_CLEARING);
 				return SWITCH_STATUS_FALSE;
 			}
 
-			if (dtmf->digit == *keys->attxfer_conf_key) {
+			if (dtmf->digit == '0') {
 				switch_caller_extension_t *extension = NULL;
 				const char *app = "three_way";
 				const char *app_arg = switch_core_session_get_uuid(session);
@@ -2487,7 +2431,7 @@ static switch_status_t tmp_hanguphook(switch_core_session_t *session)
 
 		if (!zstr(bond)) {
 			switch_core_session_t *b_session;
-
+			
 			if ((b_session = switch_core_session_locate(bond))) {
 				switch_channel_t *b_channel = switch_core_session_get_channel(b_session);
 				if (switch_channel_up(b_channel)) {
@@ -2539,7 +2483,6 @@ struct att_obj {
 void *SWITCH_THREAD_FUNC att_thread_run(switch_thread_t *thread, void *obj)
 {
 	struct att_obj *att = (struct att_obj *) obj;
-	struct att_keys *keys = NULL;
 	switch_core_session_t *session = att->session;
 	switch_core_session_t *peer_session = NULL;
 	const char *data = att->data;
@@ -2548,14 +2491,13 @@ void *SWITCH_THREAD_FUNC att_thread_run(switch_thread_t *thread, void *obj)
 	const char *bond = NULL;
 	switch_core_session_t *b_session = NULL;
 	switch_bool_t follow_recording = switch_true(switch_channel_get_variable(channel, "recording_follow_attxfer"));
-	const char *attxfer_cancel_key = NULL, *attxfer_hangup_key = NULL, *attxfer_conf_key = NULL;
 
 	att->running = 1;
 
 	if (switch_core_session_read_lock(session) != SWITCH_STATUS_SUCCESS) {
 		return NULL;
 	}
-
+		
 	bond = switch_channel_get_partner_uuid(channel);
 	switch_channel_set_variable(channel, SWITCH_SOFT_HOLDING_UUID_VARIABLE, bond);
 	switch_core_event_hook_add_state_change(session, tmp_hanguphook);
@@ -2574,30 +2516,6 @@ void *SWITCH_THREAD_FUNC att_thread_run(switch_thread_t *thread, void *obj)
 	peer_channel = switch_core_session_get_channel(peer_session);
 	switch_channel_set_flag(peer_channel, CF_INNER_BRIDGE);
 	switch_channel_set_flag(channel, CF_INNER_BRIDGE);
-
-	if (!(attxfer_cancel_key = switch_channel_get_variable(channel, "attxfer_cancel_key"))) {
-		if (!(attxfer_cancel_key = switch_channel_get_variable(peer_channel, "attxfer_cancel_key"))) {
-			attxfer_cancel_key = "#";
-		}
-	}
-
-	if (!(attxfer_hangup_key = switch_channel_get_variable(channel, "attxfer_hangup_key"))) {
-		if (!(attxfer_hangup_key = switch_channel_get_variable(peer_channel, "attxfer_hangup_key"))) {
-			attxfer_hangup_key = "*";
-		}
-	}
-
-	if (!(attxfer_conf_key = switch_channel_get_variable(channel, "attxfer_conf_key"))) {
-		if (!(attxfer_conf_key = switch_channel_get_variable(peer_channel, "attxfer_conf_key"))) {
-			attxfer_conf_key = "0";
-		}
-	}
-
-	keys = switch_core_session_alloc(session, sizeof(*keys));
-	keys->attxfer_cancel_key = switch_core_session_strdup(session, attxfer_cancel_key);
-	keys->attxfer_hangup_key = switch_core_session_strdup(session, attxfer_hangup_key);
-	keys->attxfer_conf_key = switch_core_session_strdup(session, attxfer_conf_key);
-	switch_channel_set_private(channel, "__keys", keys);
 
 	switch_ivr_multi_threaded_bridge(session, peer_session, xfer_on_dtmf, peer_session, NULL);
 
@@ -2746,7 +2664,7 @@ SWITCH_STANDARD_APP(read_function)
 		valid_terminators = "#";
 	}
 
-	switch_ivr_read(session, min_digits, max_digits, prompt_audio_file, var_name, digit_buffer, sizeof(digit_buffer), timeout, valid_terminators,
+	switch_ivr_read(session, min_digits, max_digits, prompt_audio_file, var_name, digit_buffer, sizeof(digit_buffer), timeout, valid_terminators, 
 					digit_timeout);
 }
 
@@ -2835,7 +2753,7 @@ SWITCH_STANDARD_APP(play_and_get_digits_function)
 	}
 
 	switch_play_and_get_digits(session, min_digits, max_digits, max_tries, timeout, valid_terminators,
-							   prompt_audio_file, bad_input_audio_file, var_name, digit_buffer, sizeof(digit_buffer),
+							   prompt_audio_file, bad_input_audio_file, var_name, digit_buffer, sizeof(digit_buffer), 
 							   digits_regex, digit_timeout, transfer_on_failure);
 }
 
@@ -3102,7 +3020,7 @@ SWITCH_STANDARD_APP(capture_function)
 	int ovector[30] = {0};
 	char *lbuf;
 	int proceed;
-
+	
 	if (!zstr(data) && (lbuf = switch_core_session_strdup(session, data))
 		&& (argc = switch_separate_string(lbuf, '|', argv, (sizeof(argv) / sizeof(argv[0])))) == 3) {
 		if ((proceed = switch_regex_perform(argv[1], argv[2], &re, ovector, sizeof(ovector) / sizeof(ovector[0])))) {
@@ -3111,7 +3029,7 @@ SWITCH_STANDARD_APP(capture_function)
 		switch_regex_safe_free(re);
 	} else {
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "No data specified.\n");
-	}
+	}	
 }
 
 SWITCH_STANDARD_APP(record_function)
@@ -3200,7 +3118,7 @@ SWITCH_STANDARD_APP(record_session_function)
 
 	path = switch_core_session_strdup(session, data);
 
-	/* Search for a space then a plus followed by only numbers at the end of the path,
+	/* Search for a space then a plus followed by only numbers at the end of the path, 
 	   if found trim any spaces to the left/right of the plus use the left side as the
 	   path and right side as a time limit on the recording
 	 */
@@ -3427,7 +3345,7 @@ SWITCH_STANDARD_APP(audio_bridge_function)
 			moh = switch_channel_get_hold_music(caller_channel);
 		}
 
-		if (!zstr(moh) && !strcasecmp(moh, "silence")) {
+		if (!zstr(moh) && !strcasecmp(moh, "silence")) { 
 			moh = NULL;
 		}
 
@@ -3469,7 +3387,7 @@ SWITCH_STANDARD_APP(audio_bridge_function)
 
 					if (fail) {
 						int64_t wait = (int64_t)campon_sleep * 1000000;
-
+						
 						while (stake.running && wait > 0 && switch_channel_ready(caller_channel)) {
 							switch_yield(100000);
 							wait -= 100000;
@@ -3478,8 +3396,8 @@ SWITCH_STANDARD_APP(audio_bridge_function)
 				}
 			}
 
-			status = switch_ivr_originate(NULL, &peer_session,
-										  &cause, camp_data, campon_timeout, NULL, NULL, NULL, NULL, NULL, SOF_NONE,
+			status = switch_ivr_originate(NULL, &peer_session, 
+										  &cause, camp_data, campon_timeout, NULL, NULL, NULL, NULL, NULL, SOF_NONE, 
 										  switch_channel_get_cause_ptr(caller_channel));
 
 
@@ -3606,19 +3524,19 @@ static void pickup_send_presence(const char *key_name)
 	switch_event_t *event;
 	int count;
 
-
+	
 	dup_key_name = strdup(key_name);
 	key_name = dup_key_name;
 
 	if ((domain_name = strchr(dup_key_name, '@'))) {
 		*domain_name++ = '\0';
 	}
-
+	
 	if (zstr(domain_name)) {
 		dup_domain_name = switch_core_get_domain(SWITCH_TRUE);
 		domain_name = dup_domain_name;
 	}
-
+	
 	if (zstr(domain_name)) {
 		domain_name = "cluecon.com";
 	}
@@ -3633,7 +3551,7 @@ static void pickup_send_presence(const char *key_name)
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "login", dup_id);
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "from", dup_id);
 
-
+			
 			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "force-status", "Active (%d call%s)", count, count == 1 ? "" : "s");
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "rpid", "active");
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "event_type", "presence");
@@ -3651,7 +3569,7 @@ static void pickup_send_presence(const char *key_name)
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "login", dup_id);
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "from", dup_id);
 
-
+			
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "force-status", "Idle");
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "rpid", "unknown");
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "event_type", "presence");
@@ -3662,13 +3580,13 @@ static void pickup_send_presence(const char *key_name)
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "answer-state", "terminated");
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "call-direction", "inbound");
 			switch_event_fire(&event);
-		}
+		}		
 	}
-
+	
 	switch_safe_free(dup_domain_name);
 	switch_safe_free(dup_key_name);
 	switch_safe_free(dup_id);
-
+						
 }
 
 static void pickup_pres_event_handler(switch_event_t *event)
@@ -3709,7 +3627,7 @@ static void pickup_pres_event_handler(switch_event_t *event)
 		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "proto", PICKUP_PROTO);
 		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "login", key_name);
 		switch_event_add_header(event, SWITCH_STACK_BOTTOM, "from", "%s@%s", key_name, domain_name);
-
+			
 		switch_event_add_header(event, SWITCH_STACK_BOTTOM, "force-status", "Active (%d call%s)", count, count == 1 ? "" : "s");
 		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "rpid", "active");
 		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "event_type", "presence");
@@ -3723,7 +3641,7 @@ static void pickup_pres_event_handler(switch_event_t *event)
 		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "proto", PICKUP_PROTO);
 		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "login", key_name);
 		switch_event_add_header(event, SWITCH_STACK_BOTTOM, "from", "%s@%s", key_name, domain_name);
-
+			
 		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "force-status", "Idle");
 		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "rpid", "unknown");
 		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "event_type", "presence");
@@ -3793,7 +3711,7 @@ static char *pickup_pop_uuid(const char *key, const char *uuid)
 	if ((head = switch_core_hash_find(globals.pickup_hash, key))) {
 
 		switch_core_hash_delete(globals.pickup_hash, key);
-
+		
 		if (uuid) {
 			pickup_node_t *np, *lp = NULL;
 
@@ -3804,14 +3722,14 @@ static char *pickup_pop_uuid(const char *key, const char *uuid)
 					} else {
 						head = np->next;
 					}
-
+					
 					node = np;
 					break;
 				}
 
 				lp = np;
 			}
-
+			
 		} else {
 			node = head;
 			head = head->next;
@@ -3828,13 +3746,13 @@ static char *pickup_pop_uuid(const char *key, const char *uuid)
 		free(node->key);
 		free(node);
 	}
-
+	
 	switch_mutex_unlock(globals.pickup_mutex);
 
 	if (r) pickup_send_presence(key);
 
 	switch_safe_free(dup_key);
-
+	
 	return r;
 }
 
@@ -3871,7 +3789,7 @@ static switch_status_t pickup_event_handler(switch_core_session_t *session)
 		return SWITCH_STATUS_FALSE;
 	case CS_HANGUP:
 		{
-
+			
 			if (switch_channel_test_flag(channel, CF_CHANNEL_SWAP)) {
 				const char *key = switch_channel_get_variable(channel, "channel_swap_uuid");
 				switch_core_session_t *swap_session;
@@ -3933,9 +3851,7 @@ static switch_call_cause_t pickup_outgoing_channel(switch_core_session_t *sessio
 
 	flags |= SOF_NO_LIMITS;
 
-	if (!(nsession = switch_core_session_request_uuid(pickup_endpoint_interface, SWITCH_CALL_DIRECTION_OUTBOUND,
-                                                      flags, pool, switch_event_get_header(var_event, "origination_uuid")))) {
-
+	if (!(nsession = switch_core_session_request(pickup_endpoint_interface, SWITCH_CALL_DIRECTION_OUTBOUND, flags, pool))) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Error Creating Session\n");
 		goto error;
 	}
@@ -3945,7 +3861,7 @@ static switch_call_cause_t pickup_outgoing_channel(switch_core_session_t *sessio
 
 
 	switch_core_session_set_private(nsession, tech_pvt);
-
+	
 	nchannel = switch_core_session_get_channel(nsession);
 	switch_channel_set_cap(nchannel, CC_PROXY_MEDIA);
 	switch_channel_set_cap(nchannel, CC_BYPASS_MEDIA);
@@ -3954,7 +3870,7 @@ static switch_call_cause_t pickup_outgoing_channel(switch_core_session_t *sessio
 	switch_channel_set_caller_profile(nchannel, caller_profile);
 
 	switch_channel_set_state(nchannel, CS_ROUTING);
-
+	
 
 
 	*new_session = nsession;
@@ -3998,14 +3914,14 @@ SWITCH_STANDARD_APP(pickup_function)
 	switch_channel_t *channel = switch_core_session_get_channel(session);
 
 	if (zstr(data)) {
-		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING, "Missing data.  Usage: pickup %s\n", PICKUP_SYNTAX);
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "Missing data.  Usage: pickup %s\n", PICKUP_SYNTAX);
 		return;
 	}
 
 	if ((uuid = pickup_pop_uuid((char *)data, NULL))) {
 		if ((pickup_session = switch_core_session_locate(uuid))) {
 			switch_channel_t *pickup_channel = switch_core_session_get_channel(pickup_session);
-			switch_caller_profile_t *pickup_caller_profile = switch_channel_get_caller_profile(pickup_channel),
+			switch_caller_profile_t *pickup_caller_profile = switch_channel_get_caller_profile(pickup_channel), 
 				*caller_profile = switch_channel_get_caller_profile(channel);
 			const char *name, *num;
 			switch_event_t *event;
@@ -4016,10 +3932,10 @@ SWITCH_STANDARD_APP(pickup_function)
 				switch_channel_set_variable(channel, hp->name, hp->value);
 			}
 
-
+			
 			switch_channel_set_flag(pickup_channel, CF_CHANNEL_SWAP);
 			switch_channel_set_variable(pickup_channel, "channel_swap_uuid", switch_core_session_get_uuid(session));
-
+			
 			name = caller_profile->caller_id_name;
 			num = caller_profile->caller_id_number;
 
@@ -4028,11 +3944,11 @@ SWITCH_STANDARD_APP(pickup_function)
 
 			caller_profile->callee_id_name = name;
 			caller_profile->callee_id_number = num;
-
+			
 			if (switch_event_create(&event, SWITCH_EVENT_CALL_UPDATE) == SWITCH_STATUS_SUCCESS) {
 				const char *partner_uuid = switch_channel_get_partner_uuid(channel);
 				switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Direction", "RECV");
-
+				
 				if (partner_uuid) {
 					switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Bridged-To", partner_uuid);
 				}
@@ -4105,7 +4021,7 @@ static switch_call_cause_t group_outgoing_channel(switch_core_session_t *session
 	char *cid_num_override = NULL;
 	char *domain = NULL, *dup_domain = NULL;
 	switch_channel_t *new_channel = NULL;
-	unsigned int timelimit = SWITCH_DEFAULT_TIMEOUT;
+	unsigned int timelimit = 60;
 	const char *skip, *var;
 
 	group = strdup(outbound_profile->destination_number);
@@ -4221,7 +4137,7 @@ static switch_call_cause_t user_outgoing_channel(switch_core_session_t *session,
 	char *user = NULL, *domain = NULL, *dup_domain = NULL, *dialed_user = NULL;
 	const char *dest = NULL;
 	switch_call_cause_t cause = SWITCH_CAUSE_NONE;
-	unsigned int timelimit = SWITCH_DEFAULT_TIMEOUT;
+	unsigned int timelimit = 60;
 	switch_channel_t *new_channel = NULL;
 	switch_event_t *params = NULL, *var_event_orig = var_event;
 	char stupid[128] = "";
@@ -4263,7 +4179,7 @@ static switch_call_cause_t user_outgoing_channel(switch_core_session_t *session,
 		}
 		var_event = NULL;
 	}
-
+	
 	if (switch_xml_locate_user_merged("id", user, domain, NULL, &x_user, params) != SWITCH_STATUS_SUCCESS) {
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING, "Can't find user [%s@%s]\n", user, domain);
 		cause = SWITCH_CAUSE_SUBSCRIBER_ABSENT;
@@ -4387,7 +4303,7 @@ static switch_call_cause_t user_outgoing_channel(switch_core_session_t *session,
 			switch_safe_free(d_dest);
 		}
 	}
-
+	
 	if (new_channel && x_user) {
 		if ((x_params = switch_xml_child(x_user, "variables"))) {
 			for (x_param = switch_xml_child(x_params, "variable"); x_param; x_param = x_param->next) {
@@ -4535,7 +4451,7 @@ SWITCH_STANDARD_APP(detect_silence_function)
 }
 
 static switch_status_t event_chat_send(switch_event_t *message_event)
-
+									   
 {
 	switch_event_t *event;
 	const char *to;
@@ -4554,7 +4470,7 @@ static switch_status_t event_chat_send(switch_event_t *message_event)
 	if (switch_event_fire(&event) == SWITCH_STATUS_SUCCESS) {
 		return SWITCH_STATUS_SUCCESS;
 	}
-
+	
 	switch_event_destroy(&event);
 
 	return SWITCH_STATUS_MEMERR;
@@ -4563,7 +4479,7 @@ static switch_status_t event_chat_send(switch_event_t *message_event)
 static switch_status_t api_chat_send(switch_event_t *message_event)
 {
 	const char *proto;
-	const char *from;
+	const char *from; 
 	const char *to;
 	//const char *subject;
 	//const char *body;
@@ -4576,7 +4492,7 @@ static switch_status_t api_chat_send(switch_event_t *message_event)
 	//subject = switch_event_get_header(message_event, "subject");
 	//body = switch_event_get_body(message_event);
 	type = switch_event_get_header(message_event, "type");
-	hint = switch_event_get_header(message_event, "hint");
+	hint = switch_event_get_header(message_event, "hint");	
 
 
 	if (to) {
@@ -4652,7 +4568,7 @@ SWITCH_STANDARD_APP(limit_function)
 		mydata = switch_core_session_strdup(session, data);
 		argc = switch_separate_string(mydata, ' ', argv, (sizeof(argv) / sizeof(argv[0])));
 	}
-
+	
 	backend = argv[0];
 
 	/* must have at least one item */
@@ -4660,10 +4576,10 @@ SWITCH_STANDARD_APP(limit_function)
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "USAGE: limit %s\n", LIMIT_USAGE);
 		return;
 	}
-
+	
 	/* if this is an invalid backend, fallback to db backend */
 	/* TODO: remove this when we can! */
-	if (switch_true(switch_channel_get_variable(channel, "switch_limit_backwards_compat_flag")) &&
+	if (switch_true(switch_channel_get_variable(channel, "switch_limit_backwards_compat_flag")) && 
 			!switch_loadable_module_get_limit_interface(backend)) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "Unknown backend '%s'.  To maintain backwards compatability, falling back on db backend and shifting argumens. Either update your diaplan to include the backend, fix the typo, or load the appropriate limit implementation module.\n", backend);
 		mydata = switch_core_session_sprintf(session, "db %s", data);
@@ -4751,9 +4667,9 @@ SWITCH_STANDARD_APP(limit_execute_function)
 		mydata = switch_core_session_strdup(session, data);
 		argc = switch_separate_string(mydata, ' ', argv, (sizeof(argv) / sizeof(argv[0])));
 	}
-
+	
 	/* backwards compat version, if we have 5, just prepend with db and reparse */
-	if (switch_true(switch_channel_get_variable(channel, "switch_limit_backwards_compat_flag")) &&
+	if (switch_true(switch_channel_get_variable(channel, "switch_limit_backwards_compat_flag")) && 
 			argc == 5) {
 		mydata = switch_core_session_sprintf(session, "db %s", data);
 		argc = switch_separate_string(mydata, ' ', argv, (sizeof(argv) / sizeof(argv[0])));
@@ -4800,7 +4716,7 @@ SWITCH_STANDARD_APP(limit_execute_function)
 		/* Only release the resource if we are still in CS_EXECUTE */
 		if (switch_channel_get_state(switch_core_session_get_channel(session)) == CS_EXECUTE) {
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "immediately releasing\n");
-			switch_limit_release(backend, session, realm, id);
+			switch_limit_release(backend, session, realm, id);			
 		}
 	}
 }
@@ -4944,12 +4860,12 @@ static switch_status_t next_file(switch_file_handle_t *handle)
 		}
 
 		if (context->file && switch_test_flag(handle, SWITCH_FILE_DATA_SHORT)) { /* TODO handle other data type flags */
-			switch_size_t len;
+			switch_size_t len;			
 			uint16_t buf[SWITCH_RECOMMENDED_BUFFER_SIZE] = { 0 };
 			switch_status_t stat;
 			switch_file_handle_t fh = { 0 };
 
-			if ((stat = switch_core_file_open(&fh, context->file, handle->channels, handle->samplerate,
+			if ((stat = switch_core_file_open(&fh, context->file, handle->channels, handle->samplerate, 
 												SWITCH_FILE_FLAG_READ | SWITCH_FILE_DATA_SHORT, NULL)) == SWITCH_STATUS_SUCCESS) {
 					do {
 						len = SWITCH_RECOMMENDED_BUFFER_SIZE / handle->channels;
@@ -4958,7 +4874,7 @@ static switch_status_t next_file(switch_file_handle_t *handle)
 						}
 					} while (stat == SWITCH_STATUS_SUCCESS);
 
-					switch_core_file_close(&fh);
+					switch_core_file_close(&fh);				
 					switch_file_remove(context->file, handle->memory_pool);
 
 			} else {
@@ -5004,7 +4920,7 @@ static switch_status_t file_string_file_seek(switch_file_handle_t *handle, unsig
 		context->index = -1;
 		return next_file(handle);
 	}
-
+	
 	if (!handle->seekable) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "File is not seekable\n");
 		return SWITCH_STATUS_NOTIMPL;
@@ -5046,7 +4962,7 @@ static switch_status_t file_string_file_set_string(switch_file_handle_t *handle,
 	file_string_context_t *context = handle->private_info;
 	file_string_audio_col_t *col_ptr = context->audio_cols;
 
-	while (col_ptr && col != col_ptr->col) {
+	while (col_ptr && col != col_ptr->col) { 
 		col_ptr = col_ptr->next;
 	}
 
@@ -5059,7 +4975,7 @@ static switch_status_t file_string_file_set_string(switch_file_handle_t *handle,
 		col_ptr->next = context->audio_cols;
 		context->audio_cols = col_ptr;
 	}
-
+	
 	return switch_core_file_set_string(&context->fh, col, string);
 }
 
@@ -5274,7 +5190,7 @@ static switch_status_t read_frame_callback(switch_core_session_t *session, switc
 	}
 
 	return switch_channel_test_app_flag_key(rf->key, channel, MUTEX_FLAG_WAIT) ? SWITCH_STATUS_SUCCESS : SWITCH_STATUS_FALSE;
-
+	
 }
 
 static void free_node(mutex_node_t **npp)
@@ -5298,7 +5214,7 @@ static void cancel(switch_core_session_t *session, master_mutex_t *master)
 	for (np = master->list; np; np = np->next) {
 		if (np && !strcmp(np->uuid, uuid)) {
 			switch_core_event_hook_remove_state_change(session, mutex_hanguphook);
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s %s mutex %s canceled\n",
+			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s %s mutex %s canceled\n", 
 							  switch_core_session_get_uuid(session),
 							  switch_core_session_get_name(session), master->key);
 
@@ -5311,7 +5227,7 @@ static void cancel(switch_core_session_t *session, master_mutex_t *master)
 			}
 
 			free_node(&np);
-
+			
 			break;
 		}
 
@@ -5330,7 +5246,7 @@ static void advance(master_mutex_t *master, switch_bool_t pop_current)
 	if (!master || !master->list) {
 		goto end;
 	}
-
+	
 	while (master->list) {
 		mutex_node_t *np;
 
@@ -5344,14 +5260,14 @@ static void advance(master_mutex_t *master, switch_bool_t pop_current)
 			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "ADVANCE POP %p\n", (void *)np);
 			free_node(&np);
 		}
-
+	
 
 		if (master->list) {
 			switch_core_session_t *session;
 
 			if ((session = switch_core_session_locate(master->list->uuid))) {
 				switch_channel_t *channel = switch_core_session_get_channel(session);
-				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG,
+				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, 
 								  "%s mutex %s advanced\n", switch_channel_get_name(channel), master->key);
 				switch_channel_set_app_flag_key(master->key, channel, MUTEX_FLAG_SET);
 				switch_channel_clear_app_flag_key(master->key, channel, MUTEX_FLAG_WAIT);
@@ -5369,7 +5285,7 @@ static void advance(master_mutex_t *master, switch_bool_t pop_current)
 
 	switch_mutex_unlock(globals.mutex_mutex);
 
-
+	
 }
 
 static void confirm(switch_core_session_t *session, master_mutex_t *master)
@@ -5388,7 +5304,7 @@ static void confirm(switch_core_session_t *session, master_mutex_t *master)
 		if (!strcmp(master->list->uuid, switch_core_session_get_uuid(session))) {
 			switch_channel_clear_app_flag_key(master->key, channel, MUTEX_FLAG_SET);
 			switch_core_event_hook_remove_state_change(session, mutex_hanguphook);
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s %s mutex %s cleared\n",
+			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s %s mutex %s cleared\n", 
 							  switch_core_session_get_uuid(session),
 							  switch_channel_get_name(channel), master->key);
 			advance(master, SWITCH_TRUE);
@@ -5438,7 +5354,7 @@ static switch_bool_t do_mutex(switch_core_session_t *session, const char *key, s
 		switch_mutex_unlock(globals.mutex_mutex);
 		return SWITCH_FALSE;
 	}
-
+	
 	if (!(master = switch_core_hash_find(globals.mutex_hash, key))) {
 		master = switch_core_alloc(globals.pool, sizeof(*master));
 		master->key = switch_core_strdup(globals.pool, key);
@@ -5448,7 +5364,7 @@ static switch_bool_t do_mutex(switch_core_session_t *session, const char *key, s
 	} else {
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "EXIST MASTER %s %p\n", key, (void *) master);
 	}
-
+		
 	if (on) {
 
 		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "HIT ON\n");
@@ -5472,7 +5388,7 @@ static switch_bool_t do_mutex(switch_core_session_t *session, const char *key, s
 			switch_channel_clear_app_flag_key(key, channel, MUTEX_FLAG_WAIT);
 			switch_channel_set_private(channel, "_mutex_master", master);
 			switch_core_event_hook_add_state_change(session, mutex_hanguphook);
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s %s mutex %s acquired\n",
+			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s %s mutex %s acquired\n", 
 							  switch_core_session_get_uuid(session),
 							  switch_channel_get_name(channel), key);
 			switch_mutex_unlock(globals.mutex_mutex);
@@ -5486,7 +5402,7 @@ static switch_bool_t do_mutex(switch_core_session_t *session, const char *key, s
 	}
 
 	switch_mutex_unlock(globals.mutex_mutex);
-
+	
 	switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s mutex %s is busy, waiting...\n", switch_channel_get_name(channel), key);
 
 	if ((feedback = switch_channel_get_variable(channel, "mutex_feedback"))) {
@@ -5498,19 +5414,19 @@ static switch_bool_t do_mutex(switch_core_session_t *session, const char *key, s
 	if ((rf.exten = switch_channel_get_variable(channel, "mutex_orbit_exten"))) {
 		to_val = 60;
 	}
-
+	
 	if ((var = switch_channel_get_variable(channel, "mutex_timeout"))) {
 		long tmp = atol(var);
-
+		
 		if (tmp > 0) {
 			to_val = tmp;
 		}
 	}
-
+	
 	if (to_val) {
 		switch_codec_implementation_t read_impl;
 		switch_core_session_get_read_impl(session, &read_impl);
-
+		
 		rf.to = (1000 / (read_impl.microseconds_per_packet / 1000)) * to_val;
 		rf.dp = switch_channel_get_variable(channel, "mutex_orbit_dialplan");
 		rf.context = switch_channel_get_variable(channel, "mutex_orbit_context");
@@ -5542,7 +5458,7 @@ static switch_bool_t do_mutex(switch_core_session_t *session, const char *key, s
 	if (switch_channel_test_app_flag_key(key, channel, MUTEX_FLAG_WAIT) || !switch_channel_up(channel)) {
 		cancel(session, master);
 	} else {
-		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s %s mutex %s acquired\n",
+		switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "%s %s mutex %s acquired\n", 
 						  switch_core_session_get_uuid(session),
 						  switch_channel_get_name(channel), key);
 		switch_core_event_hook_add_state_change(session, mutex_hanguphook);
@@ -5576,7 +5492,7 @@ SWITCH_STANDARD_APP(mutex_function)
 	}
 
 	do_mutex(session, key, on);
-
+	
 
 }
 
@@ -5627,9 +5543,9 @@ void *SWITCH_THREAD_FUNC page_thread(switch_thread_t *thread, void *obj)
 	switch_memory_pool_t *pool = pd->pool;
 
 
-	if (switch_ivr_originate(NULL, &session, &cause, pd->dial_str, SWITCH_DEFAULT_TIMEOUT, NULL, NULL, NULL, NULL, pd->var_event, SOF_NONE, NULL) == SWITCH_STATUS_SUCCESS) {
+	if (switch_ivr_originate(NULL, &session, &cause, pd->dial_str, 60, NULL, NULL, NULL, NULL, pd->var_event, SOF_NONE, NULL) == SWITCH_STATUS_SUCCESS) {
 		switch_channel_t *channel = switch_core_session_get_channel(session);
-
+		
 		switch_channel_set_variable(channel, "page_file", pd->path);
 
 		mypd = switch_core_session_alloc(session, sizeof(*mypd));
@@ -5655,14 +5571,14 @@ void *SWITCH_THREAD_FUNC page_thread(switch_thread_t *thread, void *obj)
 	return NULL;
 }
 
-static void launch_call(const char *dial_str,
-						const char *path, const char *exten, const char *context, const char *dp,
+static void launch_call(const char *dial_str, 
+						const char *path, const char *exten, const char *context, const char *dp, 
 						switch_mutex_t *mutex, uint32_t *counter, switch_event_t **var_event)
 {
 	switch_thread_data_t *td;
 	switch_memory_pool_t *pool;
 	page_data_t *pd;
-
+	
 	switch_core_new_memory_pool(&pool);
 
 	pd = switch_core_alloc(pool, sizeof(*pd));
@@ -5690,7 +5606,7 @@ static void launch_call(const char *dial_str,
 	td->obj = pd;
 
 	switch_thread_pool_launch_thread(&td);
-
+	
 }
 
 typedef struct call_monitor_s {
@@ -5731,7 +5647,7 @@ void *SWITCH_THREAD_FUNC call_monitor_thread(switch_thread_t *thread, void *obj)
 	while (data && *data && *data == ' ') {
 		data++;
 	}
-
+	
 	while (*data == '<') {
 		char *parsed = NULL;
 
@@ -5758,15 +5674,15 @@ void *SWITCH_THREAD_FUNC call_monitor_thread(switch_thread_t *thread, void *obj)
 	}
 
 	while (sent < size) {
-		do {
-			switch_mutex_lock(mutex);
+		do {				
+			switch_mutex_lock(mutex);				
 			busy = (counter >= cm->chunk_size);
 			switch_mutex_unlock(mutex);
-
-			if (busy) {
+			
+			if (busy) {					
 				switch_yield(100000);
-			}
-
+			}												
+			
 		} while (busy);
 
 		launch_call(argv[sent++], cm->path, cm->exten, cm->context, cm->dp, mutex, &counter, &var_event);
@@ -5797,7 +5713,7 @@ static void launch_call_monitor(const char *path, int del, const char *data, uin
 	switch_thread_data_t *td;
 	switch_memory_pool_t *pool;
 	call_monitor_t *cm;
-
+	
 	switch_core_new_memory_pool(&pool);
 
 	cm = switch_core_alloc(pool, sizeof(*cm));
@@ -5819,7 +5735,7 @@ static void launch_call_monitor(const char *path, int del, const char *data, uin
 	td->obj = cm;
 
 	switch_thread_pool_launch_thread(&td);
-
+	
 }
 
 
@@ -5856,10 +5772,10 @@ SWITCH_STANDARD_APP(page_function)
 	if ((l = switch_channel_get_variable(channel, "page_dp"))) {
 		dp = l;
 	}
-
+	
 
 	l = switch_channel_get_variable(channel, "page_record_limit");
-
+	
 	if (l) {
 		if (*l == '+') {
 			l++;
@@ -5908,7 +5824,7 @@ SWITCH_STANDARD_APP(page_function)
 		}
 
 		switch_ivr_play_file(session, NULL, beep, NULL);
-
+		
 
 		switch_ivr_record_file(session, &fh, path, &args, limit);
 	}
@@ -5916,7 +5832,7 @@ SWITCH_STANDARD_APP(page_function)
 	if (zstr(exten)) {
 		exten = switch_core_session_sprintf(session, "playback:%s", path);
 	}
-
+	
 	if (switch_file_exists(path, switch_core_session_get_pool(session)) == SWITCH_STATUS_SUCCESS) {
 		launch_call_monitor(path, del, pdata, chunk_size, exten, context, dp);
 	} else {
@@ -5951,7 +5867,7 @@ SWITCH_STANDARD_API(page_api_function)
 	while (data && *data && *data == ' ') {
 		data++;
 	}
-
+	
 	while (*data == '(') {
 		char *parsed = NULL;
 
@@ -5970,7 +5886,7 @@ SWITCH_STANDARD_API(page_api_function)
 	if (!var_event) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Parse Error!\n");
 		goto end;
-	}
+	}	   
 
 	pdata = data;
 
@@ -5990,7 +5906,7 @@ SWITCH_STANDARD_API(page_api_function)
 	if ((l = switch_event_get_header(var_event, "page_dp"))) {
 		dp = l;
 	}
-
+	
 
 	if ((l = switch_event_get_header(var_event, "page_chunk_size"))) {
 		uint32_t tmp = switch_atoui(l);
@@ -6009,7 +5925,7 @@ SWITCH_STANDARD_API(page_api_function)
 		oexten = switch_mprintf("playback:%s", path);
 		exten = oexten;
 	}
-
+	
 	if (switch_file_exists(path, NULL) == SWITCH_STATUS_SUCCESS) {
 		launch_call_monitor(path, 0, pdata, chunk_size, exten, context, dp);
 	} else {
@@ -6018,7 +5934,7 @@ SWITCH_STANDARD_API(page_api_function)
 
 
  end:
-
+	
 
 	switch_safe_free(odata);
 	switch_safe_free(oexten);
@@ -6131,73 +6047,6 @@ SWITCH_STANDARD_APP(deduplicate_dtmf_app_function)
 		switch_channel_set_private(switch_core_session_get_channel(session), "deduplicate_dtmf_filter", filter);
 		switch_core_event_hook_add_recv_dtmf(session, deduplicate_recv_dtmf_hook);
 	}
-}
-
-SWITCH_STANDARD_APP(vad_test_function)
-{
-	switch_channel_t *channel = switch_core_session_get_channel(session);
-	switch_codec_implementation_t imp = { 0 };
-	switch_vad_t *vad;
-	switch_frame_t *frame = { 0 };
-	switch_vad_state_t vad_state;
-	int mode = -1;
-	const char *var = NULL;
-	int tmp;
-
-	if (!zstr(data)) {
-		mode = atoi(data);
-
-		if (mode > 3) mode = 3;
-	}
-
-	switch_core_session_raw_read(session);
-	switch_core_session_get_read_impl(session, &imp);
-
-	vad = switch_vad_init(imp.samples_per_second, imp.number_of_channels);
-	switch_assert(vad);
-	switch_vad_set_mode(vad, mode);
-
-	if ((var = switch_channel_get_variable(channel, "vad_hangover_len"))) {
-		tmp = atoi(var);
-
-		if (tmp > 0) switch_vad_set_param(vad, "hangover_len", tmp);
-	}
-
-	if ((var = switch_channel_get_variable(channel, "vad_thresh"))) {
-		tmp = atoi(var);
-
-		if (tmp > 0) switch_vad_set_param(vad, "thresh", tmp);
-	}
-
-	if ((var = switch_channel_get_variable(channel, "vad_timeout_len"))) {
-		tmp = atoi(var);
-
-		if (tmp > 0) switch_vad_set_param(vad, "timeout_len", tmp);
-	}
-
-	while(switch_channel_ready(channel)) {
-		switch_core_session_read_frame(session, &frame, SWITCH_IO_FLAG_NONE, 0);
-
-		if (switch_test_flag(frame, SFF_CNG)) {
-			continue;
-		}
-
-		vad_state = switch_vad_process(vad, frame->data, frame->datalen / 2);
-
-		if (vad_state == SWITCH_VAD_STATE_START_TALKING) {
-			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "START TALKING\n");
-			switch_core_session_write_frame(session, frame, SWITCH_IO_FLAG_NONE, 0);
-		} else if (vad_state == SWITCH_VAD_STATE_STOP_TALKING) {
-			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "STOP TALKING\n");
-		} else if (vad_state == SWITCH_VAD_STATE_TALKING) {
-			switch_core_session_write_frame(session, frame, SWITCH_IO_FLAG_NONE, 0);
-		} else {
-			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "vad_state: %d\n", vad_state);
-		}
-	}
-
-	switch_vad_destroy(&vad);
-	switch_core_session_reset(session, SWITCH_TRUE, SWITCH_TRUE);
 }
 
 #define SPEAK_DESC "Speak text to a channel via the tts interface"
@@ -6316,7 +6165,6 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_dptools_load)
 	SWITCH_ADD_CHAT(chat_interface, "event", event_chat_send);
 	SWITCH_ADD_CHAT(chat_interface, "api", api_chat_send);
 
-
 	SWITCH_ADD_API(api_interface, "strepoch", "Convert a date string into epoch time", strepoch_api_function, "<string>");
 	SWITCH_ADD_API(api_interface, "page", "Send a file as a page", page_api_function, "(var1=val1,var2=val2)<var1=val1,var2=val2><chan1>[:_:<chanN>]");
 	SWITCH_ADD_API(api_interface, "strmicroepoch", "Convert a date string into micoepoch time", strmicroepoch_api_function, "<string>");
@@ -6326,16 +6174,16 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_dptools_load)
 
 	SWITCH_ADD_APP(app_interface, "blind_transfer_ack", "", "", blind_transfer_ack_function, "[true|false]", SAF_NONE);
 
-	SWITCH_ADD_APP(app_interface, "bind_digit_action", "bind a key sequence or regex to an action",
+	SWITCH_ADD_APP(app_interface, "bind_digit_action", "bind a key sequence or regex to an action", 
 				   "bind a key sequence or regex to an action", bind_digit_action_function, BIND_DIGIT_ACTION_USAGE, SAF_SUPPORT_NOMEDIA);
 
-	SWITCH_ADD_APP(app_interface, "capture", "capture data into a var", "capture data into a var",
+	SWITCH_ADD_APP(app_interface, "capture", "capture data into a var", "capture data into a var", 
 				   capture_function, "<varname>|<data>|<regex>", SAF_SUPPORT_NOMEDIA);
 
-	SWITCH_ADD_APP(app_interface, "clear_digit_action", "clear all digit bindings", "",
+	SWITCH_ADD_APP(app_interface, "clear_digit_action", "clear all digit bindings", "", 
 				   clear_digit_action_function, CLEAR_DIGIT_ACTION_USAGE, SAF_SUPPORT_NOMEDIA);
 
-	SWITCH_ADD_APP(app_interface, "digit_action_set_realm", "change binding realm", "",
+	SWITCH_ADD_APP(app_interface, "digit_action_set_realm", "change binding realm", "", 
 				   digit_action_set_realm_function, DIGIT_ACTION_SET_REALM_USAGE, SAF_SUPPORT_NOMEDIA);
 
 	SWITCH_ADD_APP(app_interface, "privacy", "Set privacy on calls", "Set caller privacy on calls.", privacy_function, "off|on|name|full|number",
@@ -6367,7 +6215,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_dptools_load)
 	SWITCH_ADD_APP(app_interface, "eval", "Do Nothing", "Do Nothing", eval_function, "", SAF_SUPPORT_NOMEDIA | SAF_ROUTING_EXEC | SAF_ZOMBIE_EXEC);
 	SWITCH_ADD_APP(app_interface, "set_media_stats", "Set Media Stats", "Set Media Stats", set_media_stats_function, "", SAF_SUPPORT_NOMEDIA | SAF_ROUTING_EXEC | SAF_ZOMBIE_EXEC);
 	SWITCH_ADD_APP(app_interface, "stop", "Do Nothing", "Do Nothing", eval_function, "", SAF_SUPPORT_NOMEDIA | SAF_ROUTING_EXEC);
-	SWITCH_ADD_APP(app_interface, "set_zombie_exec", "Enable Zombie Execution", "Enable Zombie Execution",
+	SWITCH_ADD_APP(app_interface, "set_zombie_exec", "Enable Zombie Execution", "Enable Zombie Execution", 
 				   zombie_function, "", SAF_SUPPORT_NOMEDIA | SAF_ROUTING_EXEC);
 	SWITCH_ADD_APP(app_interface, "pre_answer", "Pre-Answer the call", "Pre-Answer the call for a channel.", pre_answer_function, "", SAF_SUPPORT_NOMEDIA);
 	SWITCH_ADD_APP(app_interface, "answer", "Answer the call", "Answer the call for a channel.", answer_function, "", SAF_SUPPORT_NOMEDIA);
@@ -6406,8 +6254,6 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_dptools_load)
 	SWITCH_ADD_APP(app_interface, "multiunset", "Unset many channel variables", SET_LONG_DESC, multiunset_function, "[^^<delim>]<varname> <var2> <var3>",
 				   SAF_SUPPORT_NOMEDIA | SAF_ROUTING_EXEC | SAF_ZOMBIE_EXEC);
 
-	SWITCH_ADD_APP(app_interface, "capture_text", "capture text", "capture text", capture_text_function, "", SAF_NONE);
-	SWITCH_ADD_APP(app_interface, "acknowledge_call", "Indicate Call Acknowledged", "Indicate Call Acknowledged on a channel.", acknowledge_call_function, "", SAF_SUPPORT_NOMEDIA);
 	SWITCH_ADD_APP(app_interface, "ring_ready", "Indicate Ring_Ready", "Indicate Ring_Ready on a channel.", ring_ready_function, "", SAF_SUPPORT_NOMEDIA);
 	SWITCH_ADD_APP(app_interface, "remove_bugs", "Remove media bugs", "Remove all media bugs from a channel.", remove_bugs_function, "[<function>]", SAF_NONE);
 	SWITCH_ADD_APP(app_interface, "break", "Break", "Set the break flag.", break_function, "", SAF_SUPPORT_NOMEDIA);
@@ -6421,7 +6267,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_dptools_load)
 	SWITCH_ADD_APP(app_interface, "video_decode", "Set video decode.", "Set video decode.", video_set_decode_function, "[[on|wait]|off]",
 				   SAF_NONE);
 	SWITCH_ADD_APP(app_interface, "send_info", "Send info", "Send info", send_info_function, "<info>", SAF_SUPPORT_NOMEDIA);
-	SWITCH_ADD_APP(app_interface, "jitterbuffer", "Send session jitterbuffer", "Send a jitterbuffer message to a session.",
+	SWITCH_ADD_APP(app_interface, "jitterbuffer", "Send session jitterbuffer", "Send a jitterbuffer message to a session.", 
 				   jitterbuffer_function, "<jitterbuffer_data>", SAF_SUPPORT_NOMEDIA);
 	SWITCH_ADD_APP(app_interface, "send_display", "Send session a new display", "Send session a new display.", display_function, "<text>",
 				   SAF_SUPPORT_NOMEDIA);
@@ -6477,7 +6323,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_dptools_load)
 	SWITCH_ADD_APP(app_interface, "stop_tone_detect", "stop detecting tones", "Stop detecting tones", stop_fax_detect_session_function, "", SAF_NONE);
 	SWITCH_ADD_APP(app_interface, "fax_detect", "Detect faxes", "Detect fax send tone", fax_detect_session_function, "", SAF_MEDIA_TAP);
 	SWITCH_ADD_APP(app_interface, "tone_detect", "Detect tones", "Detect tones", tone_detect_session_function, "", SAF_MEDIA_TAP);
-	SWITCH_ADD_APP(app_interface, "echo", "Echo", "Perform an echo test against the calling channel", echo_function, "", SAF_SUPPORT_TEXT_ONLY);
+	SWITCH_ADD_APP(app_interface, "echo", "Echo", "Perform an echo test against the calling channel", echo_function, "", SAF_NONE);
 	SWITCH_ADD_APP(app_interface, "park", "Park", "Park", park_function, "", SAF_SUPPORT_NOMEDIA);
 	SWITCH_ADD_APP(app_interface, "park_state", "Park State", "Park State", park_state_function, "", SAF_NONE);
 	SWITCH_ADD_APP(app_interface, "gentones", "Generate Tones", "Generate tones to the channel", gentones_function, "<tgml_script>[|<loops>]", SAF_NONE);
@@ -6487,10 +6333,10 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_dptools_load)
 	SWITCH_ADD_APP(app_interface, "loop_playback", "Playback File looply", "Playback a file to the channel looply for limted times",
 				   loop_playback_function, "[+loops] <path>", SAF_NONE);
 	SWITCH_ADD_APP(app_interface, "att_xfer", "Attended Transfer", "Attended Transfer", att_xfer_function, "<channel_url>", SAF_NONE);
-	SWITCH_ADD_APP(app_interface, "read", "Read Digits", "Read Digits", read_function,
+	SWITCH_ADD_APP(app_interface, "read", "Read Digits", "Read Digits", read_function, 
 				   "<min> <max> <file> <var_name> <timeout> <terminators> <digit_timeout>", SAF_NONE);
 	SWITCH_ADD_APP(app_interface, "play_and_get_digits", "Play and get Digits", "Play and get Digits",
-				   play_and_get_digits_function,
+				   play_and_get_digits_function, 
 				   "\n\t<min> <max> <tries> <timeout> <terminators> <file> <invalid_file> <var_name> <regexp> [<digit_timeout>] ['<failure_ext> [failure_dp [failure_context]]']", SAF_NONE);
 
 	SWITCH_ADD_APP(app_interface, "stop_video_write_overlay", "Stop video write overlay", "Stop video write overlay", stop_video_write_overlay_session_function, "<path>", SAF_NONE);
@@ -6511,7 +6357,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_dptools_load)
 	SWITCH_ADD_APP(app_interface, "clear_speech_cache", "Clear Speech Handle Cache", "Clear Speech Handle Cache", clear_speech_cache_function, "",
 				   SAF_NONE);
 	SWITCH_ADD_APP(app_interface, "bridge", "Bridge Audio", "Bridge the audio between two sessions", audio_bridge_function, "<channel_url>",
-				   SAF_SUPPORT_NOMEDIA|SAF_SUPPORT_TEXT_ONLY);
+				   SAF_SUPPORT_NOMEDIA);
 	SWITCH_ADD_APP(app_interface, "system", "Execute a system command", "Execute a system command", system_session_function, "<command>",
 				   SAF_SUPPORT_NOMEDIA | SAF_ZOMBIE_EXEC);
 	SWITCH_ADD_APP(app_interface, "bgsystem", "Execute a system command in the background", "Execute a background system command", bgsystem_session_function, "<command>",
@@ -6534,7 +6380,6 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_dptools_load)
 	SWITCH_ADD_APP(app_interface, "pickup", "Pickup", "Pickup a call", pickup_function, PICKUP_SYNTAX, SAF_SUPPORT_NOMEDIA);
 	SWITCH_ADD_APP(app_interface, "deduplicate_dtmf", "Prevent duplicate inband + 2833 dtmf", "", deduplicate_dtmf_app_function, "[only_rtp]", SAF_SUPPORT_NOMEDIA);
 
-	SWITCH_ADD_APP(app_interface, "vad_test", "VAD test", "VAD test, mode = -1(default), 0, 1, 2, 3", vad_test_function, "[mode]", SAF_NONE);
 
 	SWITCH_ADD_DIALPLAN(dp_interface, "inline", inline_dialplan_hunt);
 

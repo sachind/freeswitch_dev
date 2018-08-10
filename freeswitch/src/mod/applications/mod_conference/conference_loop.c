@@ -45,8 +45,6 @@ struct _mapping control_mappings[] = {
 	{"mute", conference_loop_mute_toggle},
 	{"mute on", conference_loop_mute_on},
 	{"mute off", conference_loop_mute_off},
-	{"moh toggle", conference_loop_moh_toggle},
-	{"border", conference_loop_border},
 	{"vmute", conference_loop_vmute_toggle},
 	{"vmute on", conference_loop_vmute_on},
 	{"vmute off", conference_loop_vmute_off},
@@ -132,8 +130,6 @@ void conference_loop_mute_toggle(conference_member_t *member, caller_control_act
 	if (member == NULL)
 		return;
 
-	if (conference_utils_member_test_flag(member, MFLAG_HOLD)) return;
-
 	if (conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK)) {
 		conference_api_sub_mute(member, NULL, NULL);
 	} else {
@@ -146,8 +142,6 @@ void conference_loop_mute_toggle(conference_member_t *member, caller_control_act
 
 void conference_loop_mute_on(conference_member_t *member, caller_control_action_t *action)
 {
-	if (conference_utils_member_test_flag(member, MFLAG_HOLD)) return;
-
 	if (conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK)) {
 		conference_api_sub_mute(member, NULL, NULL);
 	}
@@ -155,8 +149,6 @@ void conference_loop_mute_on(conference_member_t *member, caller_control_action_
 
 void conference_loop_mute_off(conference_member_t *member, caller_control_action_t *action)
 {
-	if (conference_utils_member_test_flag(member, MFLAG_HOLD)) return;
-
 	if (!conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK)) {
 		conference_api_sub_unmute(member, NULL, NULL);
 		if (!conference_utils_member_test_flag(member, MFLAG_CAN_HEAR)) {
@@ -173,16 +165,6 @@ void conference_loop_conference_video_vmute_snap(conference_member_t *member, ca
 void conference_loop_conference_video_vmute_snapoff(conference_member_t *member, caller_control_action_t *action)
 {
 	conference_video_vmute_snap(member, SWITCH_TRUE);
-}
-
-void conference_loop_moh_toggle(conference_member_t *member, caller_control_action_t *action)
-{
-	conference_api_set_moh(member->conference, "toggle");
-}
-
-void conference_loop_border(conference_member_t *member, caller_control_action_t *action)
-{
-	conference_api_sub_vid_border(member, NULL, action->expanded_data);
 }
 
 void conference_loop_vmute_toggle(conference_member_t *member, caller_control_action_t *action)
@@ -286,8 +268,6 @@ void conference_loop_deafmute_toggle(conference_member_t *member, caller_control
 	if (member == NULL)
 		return;
 
-	if (conference_utils_member_test_flag(member, MFLAG_HOLD)) return;
-
 	if (conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK)) {
 		conference_api_sub_mute(member, NULL, NULL);
 		if (conference_utils_member_test_flag(member, MFLAG_CAN_HEAR)) {
@@ -315,15 +295,6 @@ void conference_loop_energy_up(conference_member_t *member, caller_control_actio
 	if (member->energy_level > 1800) {
 		member->energy_level = 1800;
 	}
-
-	if (member->auto_energy_level && member->energy_level > member->auto_energy_level) {
-		member->auto_energy_level = 0;
-	}
-
-	if (member->max_energy_level && member->energy_level > member->max_energy_level) {
-		member->max_energy_level = 0;
-	}
-
 
 	if (test_eflag(member->conference, EFLAG_ENERGY_LEVEL) &&
 		switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, CONF_EVENT_MAINT) == SWITCH_STATUS_SUCCESS) {
@@ -357,15 +328,6 @@ void conference_loop_energy_equ_conf(conference_member_t *member, caller_control
 
 	member->energy_level = member->conference->energy_level;
 
-
-	if (member->auto_energy_level && member->energy_level > member->auto_energy_level) {
-		member->auto_energy_level = 0;
-	}
-
-	if (member->max_energy_level && member->energy_level > member->max_energy_level) {
-		member->max_energy_level = 0;
-	}
-
 	if (test_eflag(member->conference, EFLAG_ENERGY_LEVEL) &&
 		switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, CONF_EVENT_MAINT) == SWITCH_STATUS_SUCCESS) {
 		conference_member_add_event_data(member, event);
@@ -396,14 +358,6 @@ void conference_loop_energy_dn(conference_member_t *member, caller_control_actio
 	member->energy_level -= 200;
 	if (member->energy_level < 0) {
 		member->energy_level = 0;
-	}
-	
-	if (member->auto_energy_level && member->energy_level > member->auto_energy_level) {
-		member->auto_energy_level = 0;
-	}
-
-	if (member->max_energy_level && member->energy_level > member->max_energy_level) {
-		member->max_energy_level = 0;
 	}
 
 	if (test_eflag(member->conference, EFLAG_ENERGY_LEVEL) &&
@@ -736,70 +690,6 @@ void conference_loop_hangup(conference_member_t *member, caller_control_action_t
 	conference_utils_member_clear_flag_locked(member, MFLAG_RUNNING);
 }
 
-static void stop_talking_handler(conference_member_t *member)
-{
-	switch_event_t *event;
-	double avg = 0, avg2 = 0, gcp = 0, ngcp = 0, pct = 0;
-
-	member->auto_energy_track = 0;
-
-	if (member->score_count && member->talking_count) {		
-		int duration_ms = member->talking_count * member->conference->interval;
-		avg = (double)member->score_delta_accum / member->score_count;
-		avg2 = (double)member->score_accum / member->score_count;
-
-
-		if (!member->nogate_count) member->nogate_count = 1;
-		if (!member->gate_count) member->gate_count = 1;
-
-		pct = ((float)member->nogate_count / (float)member->gate_count) * 100;
-		gcp = ((double)member->gate_count / member->talking_count) * 100;
-		ngcp = ((double)member->nogate_count / member->talking_count) * 100;
-
-		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG2, "SCORE AVG %f/%f %d GC %d NGC %d GC %% %f NGC %% %f DIFF %f EL %d MS %d PCT %f\n", 
-			   avg2, avg, member->score_count, member->gate_count, 
-			   member->nogate_count, 
-			   gcp, ngcp, gcp - ngcp, member->energy_level, duration_ms, pct);
-
-
-		if (member->auto_energy_level) {
-			if (duration_ms > 2000 && pct > 1) {
-				int new_level = (int)(avg2 *.75);
-				if (new_level > member->auto_energy_level) {
-					new_level = member->auto_energy_level;
-				}
-				member->energy_level = new_level;
-				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG2, "SET ENERGY %d\n", new_level);
-			}
-		}
-
-	}
-	
-	member->gate_open = 0;
-	member->nogate_count = 0;
-	member->gate_count = 0;
-
-	if (test_eflag(member->conference, EFLAG_STOP_TALKING) &&
-		switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, CONF_EVENT_MAINT) == SWITCH_STATUS_SUCCESS) {
-		conference_member_add_event_data(member, event);
-		if (avg) {
-			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talking-gate-hits", "%u", member->score_count);
-			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talking-total-packets", "%u", member->talking_count);
-			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talking-duration-ms", "%u", member->talking_count * member->conference->interval);
-			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talking-average-energy", "%f", avg2);
-			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talking-delta-average", "%f", avg);
-			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talking-hit-on-percent", "%f", gcp);
-			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talking-non-hit-ratio", "%f", pct);
-			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talking-hit-off-percent", "%f", ngcp);
-			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talking-hit-off-differential", "%f", gcp - ngcp);
-		}
-		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Action", "stop-talking");
-		switch_event_fire(&event);
-	}
-
-	
-}
-
 /* marshall frames from the call leg to the conference thread for muxing to other call legs */
 void *SWITCH_THREAD_FUNC conference_loop_input(switch_thread_t *thread, void *obj)
 {
@@ -912,42 +802,60 @@ void *SWITCH_THREAD_FUNC conference_loop_input(switch_thread_t *thread, void *ob
 			}
 
 			member->loop_loop = 1;
-
-			goto do_continue;
+			
+			goto do_continue;			
 		}
 
 		if (switch_test_flag(read_frame, SFF_CNG)) {
+			if (member->conference->agc_level) {
+				member->nt_tally++;
+			}
+
 			if (hangunder_hits) {
 				hangunder_hits--;
 			}
 			if (conference_utils_member_test_flag(member, MFLAG_TALKING)) {
 				if (++hangover_hits >= hangover) {
 					hangover_hits = hangunder_hits = 0;
-					if (member->nogate_count < hangover) {
-						member->nogate_count = 0;
-					} else {
-						member->nogate_count -= hangover;
-					}
 					conference_utils_member_clear_flag_locked(member, MFLAG_TALKING);
 					conference_member_update_status_field(member);
-					conference_member_set_score_iir(member, 0);
+					conference_member_check_agc_levels(member);
+					conference_member_clear_avg(member);
+					member->score_iir = 0;
 					member->floor_packets = 0;
-					stop_talking_handler(member);
+
+					if (test_eflag(member->conference, EFLAG_STOP_TALKING) &&
+						switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, CONF_EVENT_MAINT) == SWITCH_STATUS_SUCCESS) {
+						conference_member_add_event_data(member, event);
+						switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Action", "stop-talking");
+						switch_event_fire(&event);
+					}
 				}
 			}
 
 			goto do_continue;
 		}
 
+		if (member->nt_tally > (int32_t)(member->read_impl.actual_samples_per_second / member->read_impl.samples_per_packet) * 3) {
+			member->agc_volume_in_level = 0;
+			conference_member_clear_avg(member);
+		}
+
+		/* Check for input volume adjustments */
+		if (!member->conference->agc_level) {
+			member->conference->agc_level = 0;
+			conference_member_clear_avg(member);
+		}
+
+
 		/* if the member can speak, compute the audio energy level and */
 		/* generate events when the level crosses the threshold        */
-		if (((conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK) && !conference_utils_member_test_flag(member, MFLAG_HOLD)) ||
-			 conference_utils_member_test_flag(member, MFLAG_MUTE_DETECT))) {
+		if ((conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK) || conference_utils_member_test_flag(member, MFLAG_MUTE_DETECT))) {
 			uint32_t energy = 0, i = 0, samples = 0, j = 0;
 			int16_t *data;
-			int gate_check = 0;
-			int score_iir = 0;
-			
+			int agc_period = (member->read_impl.actual_samples_per_second / member->read_impl.samples_per_packet) / 4;
+
+
 			data = read_frame->data;
 			member->score = 0;
 
@@ -955,10 +863,14 @@ void *SWITCH_THREAD_FUNC conference_loop_input(switch_thread_t *thread, void *ob
 				switch_change_sln_volume(read_frame->data, (read_frame->datalen / 2) * member->conference->channels, member->volume_in_level);
 			}
 
-			if ((samples = read_frame->datalen / sizeof(*data))) {
+			if (member->agc_volume_in_level) {
+				switch_change_sln_volume_granular(read_frame->data, (read_frame->datalen / 2) * member->conference->channels, member->agc_volume_in_level);
+			}
+
+			if ((samples = read_frame->datalen / sizeof(*data) / member->read_impl.number_of_channels)) {
 				for (i = 0; i < samples; i++) {
 					energy += abs(data[j]);
-					j++;
+					j += member->read_impl.number_of_channels;
 				}
 
 				member->score = energy / samples;
@@ -968,153 +880,58 @@ void *SWITCH_THREAD_FUNC conference_loop_input(switch_thread_t *thread, void *ob
 				member->vol_period--;
 			}
 
-			gate_check = conference_member_noise_gate_check(member);
+			if (member->conference->agc_level && member->score &&
+				conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK) &&
+				conference_member_noise_gate_check(member)
+				) {
+				int last_shift = abs((int)(member->last_score - member->score));
 
-			if (gate_check && member->agc) {
-				switch_agc_feed(member->agc, (int16_t *)read_frame->data, (read_frame->datalen / 2) * member->conference->channels, 1);
+				if (member->score && member->last_score && last_shift > 900) {
+					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG7,
+									  "AGC %s:%d drop anomalous shift of %d\n",
+									  member->conference->name,
+									  member->id, last_shift);
+
+				} else {
+					member->avg_tally += member->score;
+					member->avg_itt++;
+					if (!member->avg_itt) member->avg_itt++;
+					member->avg_score = member->avg_tally / member->avg_itt;
+				}
+
+				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG7,
+								  "AGC %s:%d diff:%d level:%d cur:%d avg:%d vol:%d\n",
+								  member->conference->name,
+								  member->id, member->conference->agc_level - member->avg_score, member->conference->agc_level,
+								  member->score, member->avg_score, member->agc_volume_in_level);
+
+				if (++member->agc_concur >= agc_period) {
+					if (!member->vol_period) {
+						conference_member_check_agc_levels(member);
+					}
+					member->agc_concur = 0;
+				}
+			} else {
+				member->nt_tally++;
 			}
 
-			score_iir = (int) (((1.0 - SCORE_DECAY) * (float) member->score) + (SCORE_DECAY * (float) member->score_iir));
+			member->score_iir = (int) (((1.0 - SCORE_DECAY) * (float) member->score) + (SCORE_DECAY * (float) member->score_iir));
 
-			if (score_iir > SCORE_MAX_IIR) {
-				score_iir = SCORE_MAX_IIR;
+			if (member->score_iir > SCORE_MAX_IIR) {
+				member->score_iir = SCORE_MAX_IIR;
 			}
 
-			conference_member_set_score_iir(member, score_iir);
-			
-			if (member->auto_energy_level && !conference_utils_member_test_flag(member, MFLAG_TALKING)) {
-				if (++member->auto_energy_track >= (1000 / member->conference->interval * member->conference->auto_energy_sec)) {
-					if (member->energy_level > member->conference->energy_level) {
-						int new_level = member->energy_level - 100;
-						
-						if (new_level < member->conference->energy_level) {
-							new_level = member->conference->energy_level;
-						}
-						member->energy_level = new_level;
-						switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG2, "ENERGY DOWN %d\n", member->energy_level);
-					}
-					member->auto_energy_track = 0;
-				}
-			}
-
-			gate_check = conference_member_noise_gate_check(member);
-
-			if (conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK) && !conference_utils_member_test_flag(member, MFLAG_HOLD)) {
-				if (member->max_energy_level) {
-					if (member->score > member->max_energy_level && ++member->max_energy_hits > member->max_energy_hit_trigger) {
-						member->mute_counter = member->burst_mute_count;
-						switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG2, "MAX ENERGY HIT!\n");
-					} else if (!member->mute_counter && member->score > (int)((double)member->max_energy_level * .75)) {
-						int dec = 1;
-
-						if (member->score_count > 3) {
-							dec = 2;
-						} else if (member->score_count > 6) {
-							dec = 3;
-						} else if (member->score_count > 9) {
-							dec = 4;
-						}
-
-						switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG2, "MAX ENERGY THRESHOLD! -%d\n", dec);
-						switch_change_sln_volume(read_frame->data, (read_frame->datalen / 2) * member->conference->channels, -1 * dec);
-					} 
-				}
-
-				if (member->mute_counter > 0) {
-					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG2, "MAX ENERGY DECAY %d\n", member->mute_counter);
-					member->mute_counter--;
-					switch_generate_sln_silence(read_frame->data, (read_frame->datalen / 2), member->conference->channels, 1400 * (member->conference->rate / 8000));
-					if (member->mute_counter == 0) {
-						member->max_energy_hits = 0;
-					}
-				}
-				
-				if (conference_utils_member_test_flag(member, MFLAG_TALKING)) {
-					member->talking_count++;
-
-					if (gate_check) {
-						int gate_count = 0, nogate_count = 0;
-						double pct;
-						member->score_accum += member->score;
-						member->score_delta_accum += abs(member->score - member->last_score);
-						member->score_count++;
-						member->score_avg = member->score_accum / member->score_count;
-
-						member->gate_count++;
-						member->gate_open = 1;
-
-						gate_count = member->gate_count;
-						nogate_count = member->nogate_count;
-
-						if (!gate_count) {
-							pct = 0;
-						} else {
-							pct = ((float)nogate_count / (float)gate_count) * 100;
-						}
-					
-						switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG2, "TRACK %d %d %d/%d %f\n", 
-										  member->score, 
-										  member->score_avg,
-										  gate_count, nogate_count, pct);
-						
-
-					} else {
-						member->nogate_count++;
-						member->gate_open = 0;
-					}
-				
-				}
-			
-				if (conference_utils_member_test_flag(member, MFLAG_TALK_DATA_EVENTS)) {
-					if (++member->talk_track >= (1000 / member->conference->interval * 10)) {
-						uint32_t diff = 0; 
-						double avg = 0;
-						switch_event_t *event;
-
-						if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, CONF_EVENT_MAINT) == SWITCH_STATUS_SUCCESS) {
-							conference_member_add_event_data(member, event);
-					
-
-							if (member->first_talk_detect) {
-
-								if (!member->talk_detects) {
-									member->talk_detects = 1;
-								}
-					
-								diff = (uint32_t) (switch_micro_time_now() - member->first_talk_detect) / 1000;
-								avg = (double)diff / member->talk_detects;
-								switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talk-detects", "%d", member->talk_detects);
-								switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talk-detect-duration", "%d", diff);
-								switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talk-detect-avg", "%f", avg);
-							} else {
-								switch_event_add_header(event, SWITCH_STACK_BOTTOM, "talk-detects", "%d", 0);
-							}
-
-					
-							switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Action", "talk-report");
-							switch_event_fire(&event);
-						}
-
-						if (!conference_utils_member_test_flag(member, MFLAG_TALKING)) {
-							member->first_talk_detect = 0;
-							member->talk_detects = 0;
-						} else {
-							member->talk_detects = 1;
-						}
-
-						member->talk_track = 0;
-					}
-				}
-			}
-
-
-			if (gate_check) {
+			if (conference_member_noise_gate_check(member)) {
 				uint32_t diff = member->score - member->energy_level;
 				if (hangover_hits) {
 					hangover_hits--;
 				}
 
-				if (member->id == member->conference->floor_holder) {
+				if (member->conference->agc_level) {
+					member->nt_tally = 0;
+				}
+
+				if (member == member->conference->floor_holder) {
 					member->floor_packets++;
 				}
 
@@ -1128,19 +945,7 @@ void *SWITCH_THREAD_FUNC conference_loop_input(switch_thread_t *thread, void *ob
 						conference_member_update_status_field(member);
 						member->floor_packets = 0;
 
-						
-						if (!member->first_talk_detect) {
-							member->first_talk_detect = switch_micro_time_now();
-						}
-						
-						member->talk_detects++;
-						member->score_delta_accum = 0;
-						member->score_accum = 0;
-						member->score_count = 0;
-						member->talking_count = 0;
-						
 						if (test_eflag(member->conference, EFLAG_START_TALKING) && conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK) &&
-							!conference_utils_member_test_flag(member, MFLAG_HOLD) &&
 							switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, CONF_EVENT_MAINT) == SWITCH_STATUS_SUCCESS) {
 							conference_member_add_event_data(member, event);
 							switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Action", "start-talking");
@@ -1167,21 +972,25 @@ void *SWITCH_THREAD_FUNC conference_loop_input(switch_thread_t *thread, void *ob
 					hangunder_hits--;
 				}
 
-				if (conference_utils_member_test_flag(member, MFLAG_TALKING) && conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK) &&
-					!conference_utils_member_test_flag(member, MFLAG_HOLD)) {
+				if (member->conference->agc_level) {
+					member->nt_tally++;
+				}
+
+				if (conference_utils_member_test_flag(member, MFLAG_TALKING) && conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK)) {
+					switch_event_t *event;
 					if (++hangover_hits >= hangover) {
 						hangover_hits = hangunder_hits = 0;
-
-						if (member->nogate_count < hangover) {
-							member->nogate_count = 0;
-						} else {
-							member->nogate_count -= hangover;
-						}
-
 						conference_utils_member_clear_flag_locked(member, MFLAG_TALKING);
 						conference_member_update_status_field(member);
+						conference_member_check_agc_levels(member);
+						conference_member_clear_avg(member);
 
-						stop_talking_handler(member);						
+						if (test_eflag(member->conference, EFLAG_STOP_TALKING) &&
+							switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, CONF_EVENT_MAINT) == SWITCH_STATUS_SUCCESS) {
+							conference_member_add_event_data(member, event);
+							switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Action", "stop-talking");
+							switch_event_fire(&event);
+						}
 					}
 				}
 			}
@@ -1189,18 +998,17 @@ void *SWITCH_THREAD_FUNC conference_loop_input(switch_thread_t *thread, void *ob
 
 			member->last_score = member->score;
 
-			if (member->id == member->conference->floor_holder) {
+			if (member == member->conference->floor_holder) {
 				if (member->id != member->conference->video_floor_holder &&
 					(member->floor_packets > member->conference->video_floor_packets || member->energy_level == 0)) {
 					conference_video_set_floor_holder(member->conference, member, SWITCH_FALSE);
 				}
 			}
 		}
-
+		
 		/* skip frames that are not actual media or when we are muted or silent */
 		if ((conference_utils_member_test_flag(member, MFLAG_TALKING) || member->energy_level == 0 || conference_utils_test_flag(member->conference, CFLAG_AUDIO_ALWAYS))
-			&& conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK) && !conference_utils_test_flag(member->conference, CFLAG_WAIT_MOD)
-			&& !conference_utils_member_test_flag(member, MFLAG_HOLD)
+			&& conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK) &&	!conference_utils_test_flag(member->conference, CFLAG_WAIT_MOD)
 			&& (member->conference->count > 1 || (member->conference->record_count && member->conference->count >= member->conference->min_recording_participants))) {
 			switch_audio_resampler_t *read_resampler = member->read_resampler;
 			void *data;
@@ -1358,10 +1166,6 @@ void conference_loop_output(conference_member_t *member)
 		int to = 60;
 		int wait_sec = 2;
 		int loops = 0;
-		switch_event_t *var_event;
-
-		switch_event_create(&var_event, SWITCH_EVENT_CHANNEL_DATA);
-		switch_channel_process_export(channel, NULL, var_event, "conference_auto_outcall_export_vars");
 
 		if (ann && !switch_channel_test_app_flag_key("conference_silent", channel, CONF_SILENT_REQ)) {
 			member->conference->special_announce = switch_core_strdup(member->conference->pool, ann);
@@ -1393,11 +1197,9 @@ void conference_loop_output(conference_member_t *member)
 			}
 			for (x = 0; x < argc; x++) {
 				char *dial_str = switch_mprintf("%s%s", switch_str_nil(prefix), argv[x]);
-				switch_event_t *event = NULL;
-				switch_event_dup(&event, var_event);
 				switch_assert(dial_str);
 				conference_outcall_bg(member->conference, NULL, NULL, dial_str, to, switch_str_nil(flags), cid_name, cid_num, NULL,
-									  profile, &member->conference->cancel_cause, &event);
+									  profile, &member->conference->cancel_cause, NULL);
 				switch_safe_free(dial_str);
 			}
 			switch_safe_free(cpstr);
@@ -1546,7 +1348,6 @@ void conference_loop_output(conference_member_t *member)
 
 					if (switch_core_session_write_frame(member->session, &write_frame, SWITCH_IO_FLAG_NONE, 0) != SWITCH_STATUS_SUCCESS) {
 						switch_mutex_unlock(member->audio_out_mutex);
-						switch_mutex_unlock(member->write_mutex);
 						break;
 					}
 				}

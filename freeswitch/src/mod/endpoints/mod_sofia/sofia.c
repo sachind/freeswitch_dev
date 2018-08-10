@@ -35,7 +35,6 @@
  * Emmanuel Schmidbauer <e.schmidbauer@gmail.com>
  * William King <william.king@quentustech.com>
  * David Knell <david.knell@telng.com>
- * David Villasmil <david.villasmil@gmail.com>
  *
  * sofia.c -- SOFIA SIP Endpoint (sofia code)
  *
@@ -58,7 +57,7 @@ extern su_log_t stun_log[];
 extern su_log_t su_log_default[];
 
 static void config_sofia_profile_urls(sofia_profile_t * profile);
-static void parse_gateways(sofia_profile_t *profile, switch_xml_t gateways_tag, const char *gwname);
+static void parse_gateways(sofia_profile_t *profile, switch_xml_t gateways_tag);
 static void parse_domain_tag(sofia_profile_t *profile, switch_xml_t x_domain_tag, const char *dname, const char *parse, const char *alias);
 
 void sofia_handle_sip_i_reinvite(switch_core_session_t *session,
@@ -85,36 +84,6 @@ static void sofia_handle_sip_r_options(switch_core_session_t *session, int statu
 									   nua_handle_t *nh, sofia_private_t *sofia_private, sip_t const *sip,
 								sofia_dispatch_event_t *de, tagi_t tags[]);
 
-static void sofia_set_accept_language_channel_variable(switch_channel_t *channel, sip_t const *sip)
-{
-	if (sip->sip_accept_language) {
-		sip_accept_language_t *sip_accept_language = NULL;
-		int count = 0;
-
-		for(sip_accept_language = sip->sip_accept_language; sip_accept_language; sip_accept_language = sip_accept_language->aa_next) {
-			char var_name[64] = "";
-
-			if (zstr(sip_accept_language->aa_value)) {
-				continue;
-
-			}
-			if (count == 0) {
-				switch_channel_set_variable(channel, "sip_accept_language", sip_accept_language->aa_value);
-			}
-
-			switch_snprintf(var_name, sizeof(var_name), "sip_accept_language_%d_value", count);
-			switch_channel_set_variable(channel, var_name, sip_accept_language->aa_value);
-
-			if (!zstr(sip_accept_language->aa_q)) {
-				switch_snprintf(var_name, sizeof(var_name), "sip_accept_language_%d_q", count);
-				switch_channel_set_variable(channel, var_name, sip_accept_language->aa_q);
-			}
-
-			count++;
-		}
-		switch_channel_set_variable_printf(channel, "sip_accept_language_count", "%d", count);
-	}
-}
 
 void sofia_handle_sip_r_notify(switch_core_session_t *session, int status,
 							   char const *phrase,
@@ -123,10 +92,10 @@ void sofia_handle_sip_r_notify(switch_core_session_t *session, int status,
 {
 	private_object_t *tech_pvt = switch_core_session_get_private(session);
 	switch_core_session_t *other_session;
-
+	
 	if (tech_pvt->proxy_refer_uuid && (other_session = switch_core_session_locate(tech_pvt->proxy_refer_uuid))) {
 		switch_core_session_message_t *msg;
-
+		
 		msg = switch_core_session_alloc(other_session, sizeof(*msg));
 		msg->message_id = SWITCH_MESSAGE_INDICATE_RESPOND;
 		msg->from = __FILE__;
@@ -138,7 +107,7 @@ void sofia_handle_sip_r_notify(switch_core_session_t *session, int status,
 		tech_pvt->proxy_refer_uuid = NULL;
 	}
 
-
+	
 	if (status == 481 && sip && !sip->sip_retry_after && sip->sip_call_id && (!sofia_private || !sofia_private->is_call)) {
 		char *sql;
 
@@ -227,23 +196,12 @@ static void extract_header_vars(sofia_profile_t *profile, sip_t const *sip,
 
 	if (sip) {
 		if (sip->sip_route) {
-			const char *v = switch_channel_get_variable(channel, "sip_full_route");
-
-			if (!v) {
-				sip_route_t *rp;
-				switch_stream_handle_t stream = { 0 };
-				int x = 0;
-
-				SWITCH_STANDARD_STREAM(stream);
-
-				for (rp = sip->sip_route; rp; rp = rp->r_next) {
-					char *route = sip_header_as_string(nh->nh_home, (void *) rp);
-					stream.write_function(&stream, x == 0 ? "%s" : ",%s", route);
-					su_free(nh->nh_home, route);
-					x++;
+			if ((full = sip_header_as_string(nh->nh_home, (void *) sip->sip_route))) {
+				const char *v = switch_channel_get_variable(channel, "sip_full_route");
+				if (!v) {
+					switch_channel_set_variable(channel, "sip_full_route", full);
 				}
-				switch_channel_set_variable(channel, "sip_full_route", stream.data);
-				free(stream.data);
+				su_free(nh->nh_home, full);
 			}
 		}
 
@@ -581,10 +539,10 @@ static void sofia_parse_all_invite_headers(sip_t const *sip, switch_core_session
 static switch_status_t sofia_pass_notify(switch_core_session_t *session, const char *uuid, const char *payload)
 {
 	switch_core_session_t *other_session;
-
+		
 	if ((other_session = switch_core_session_locate(uuid))) {
 		switch_core_session_message_t *msg;
-
+				
 		msg = switch_core_session_alloc(other_session, sizeof(*msg));
 		MESSAGE_STAMP_FFL(msg);
 		msg->message_id = SWITCH_MESSAGE_INDICATE_BLIND_TRANSFER_RESPONSE;
@@ -766,7 +724,7 @@ void sofia_handle_sip_i_notify(switch_core_session_t *session, int status,
 		}
 		goto error;
 	}
-
+	
 
 	if (!(gateway = sofia_reg_find_gateway(sofia_private->gateway_name))) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Gateway information missing\n");
@@ -907,30 +865,6 @@ void sofia_handle_sip_i_notify(switch_core_session_t *session, int status,
 
 }
 
-/*
- * This will fire an event containing X-headers from the BYE response
- */
-void sofia_handle_sip_r_bye(switch_core_session_t *session, int status,
-							char const *phrase,
-							nua_t *nua, sofia_profile_t *profile, nua_handle_t *nh, sofia_private_t *sofia_private, sip_t const *sip,
-								sofia_dispatch_event_t *de, tagi_t tags[])
-{
-	if (profile && sofia_test_pflag(profile, PFLAG_FIRE_BYE_RESPONSE_EVENTS) && sip && sip->sip_call_id && !zstr(sip->sip_call_id->i_id) && sofia_private && !zstr_buf(sofia_private->uuid_str)) {
-		switch_event_t *bye_response_event = NULL;
-		sip_unknown_t *un;
-		if (switch_event_create_subclass(&bye_response_event, SWITCH_EVENT_CUSTOM, MY_EVENT_BYE_RESPONSE) == SWITCH_STATUS_SUCCESS) {
-			switch_event_add_header(bye_response_event, SWITCH_STACK_BOTTOM, "call-id", "%s", sip->sip_call_id->i_id);
-			switch_event_add_header(bye_response_event, SWITCH_STACK_BOTTOM, "Unique-ID", "%s", sofia_private->uuid_str);
-			for (un = sip->sip_unknown; un; un = un->un_next) {
-				if (!zstr(un->un_value)) {
-					switch_event_add_header(bye_response_event, SWITCH_STACK_BOTTOM, un->un_name, "%s", un->un_value);
-				}
-			}
-			switch_event_fire(&bye_response_event);
-		}
-	}
-}
-
 void sofia_handle_sip_i_bye(switch_core_session_t *session, int status,
 							char const *phrase,
 							nua_t *nua, sofia_profile_t *profile, nua_handle_t *nh, sofia_private_t *sofia_private, sip_t const *sip,
@@ -1022,7 +956,6 @@ void sofia_handle_sip_i_bye(switch_core_session_t *session, int status,
 		char *reason_header = sip_header_as_string(nh->nh_home, (void *) sip->sip_reason);
 
 		if (!zstr(reason_header)) {
-			switch_channel_set_variable(channel, "sip_reason", reason_header);
 			switch_channel_set_variable_partner(channel, "sip_reason", reason_header);
 		}
 	}
@@ -1067,7 +1000,7 @@ void sofia_handle_sip_i_bye(switch_core_session_t *session, int status,
 		if (nsession) {
 			const char *vval;
 			switch_channel_t *nchannel = switch_core_session_get_channel(nsession);
-
+			
 			if (!(vval = switch_channel_get_variable(nchannel, "sip_copy_custom_headers")) || switch_true(vval)) {
 				switch_ivr_transfer_variable(session, nsession, SOFIA_SIP_BYE_HEADER_PREFIX_T);
 			}
@@ -1094,8 +1027,6 @@ void sofia_handle_sip_i_bye(switch_core_session_t *session, int status,
 	} else if (sip->sip_server && !zstr(sip->sip_server->g_string)) {
 		switch_channel_set_variable(channel, "sip_user_agent", sip->sip_server->g_string);
 	}
-
-	sofia_set_accept_language_channel_variable(channel, sip);
 
 	if ((tmp = sofia_glue_get_unknown_header(sip, "rtp-txstat"))) {
 		switch_channel_set_variable(channel, "sip_rtp_txstat", tmp);
@@ -1173,10 +1104,6 @@ void sofia_send_callee_id(switch_core_session_t *session, const char *name, cons
 		if (zstr(number)) {
 			name = number = "UNKNOWN";
 		}
-
-		if (!zstr(name) && !strcmp(name,"_undef_")) {
-			name = "";
-		}
 	} else {
 		if (zstr(name)) {
 			name = caller_profile->callee_id_name;
@@ -1192,10 +1119,6 @@ void sofia_send_callee_id(switch_core_session_t *session, const char *name, cons
 
 		if (zstr(number)) {
 			number = caller_profile->destination_number;
-		}
-
-		if (!zstr(name) && !strcmp(name,"_undef_")) {
-			name = "";
 		}
 	}
 
@@ -1444,7 +1367,7 @@ static void sofia_handle_sip_r_refer(nua_t *nua, sofia_profile_t *profile, nua_h
 	if (status < 200) {
 		return;
 	}
-
+	
 	if (tech_pvt->proxy_refer_uuid && (other_session = switch_core_session_locate(tech_pvt->proxy_refer_uuid))) {
 		switch_core_session_message_t *msg;
 
@@ -1492,6 +1415,7 @@ static void our_sofia_event_callback(nua_event_t event,
 
 
 	if (sofia_private && sofia_private != &mod_sofia_globals.destroy_private && sofia_private != &mod_sofia_globals.keep_private) {
+
 		if (!zstr(sofia_private->gateway_name)) {
 			if (!(gateway = sofia_reg_find_gateway(sofia_private->gateway_name))) {
 				return;
@@ -1631,6 +1555,7 @@ static void our_sofia_event_callback(nua_event_t event,
 	case nua_i_fork:
 	case nua_r_info:
 		break;
+	case nua_r_bye:
 	case nua_r_unregister:
 	case nua_r_unsubscribe:
 	case nua_i_terminated:
@@ -1653,7 +1578,6 @@ static void our_sofia_event_callback(nua_event_t event,
 				char *reason_header = sip_header_as_string(nh->nh_home, (void *) sip->sip_reason);
 
 				if (!zstr(reason_header)) {
-					switch_channel_set_variable(channel, "sip_reason", reason_header);
 					switch_channel_set_variable_partner(channel, "sip_reason", reason_header);
 				}
 			}
@@ -1719,7 +1643,7 @@ static void our_sofia_event_callback(nua_event_t event,
 				if (switch_channel_test_flag(tech_pvt->channel, CF_PROXY_MEDIA) && r_sdp) {
 					if (sofia_test_pflag(tech_pvt->profile, PFLAG_3PCC_PROXY)) {
 						switch_channel_set_variable_partner(tech_pvt->channel, SWITCH_B_SDP_VARIABLE, r_sdp);
-
+						
 						switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(tech_pvt->session), SWITCH_LOG_DEBUG, "3PCC-PROXY, Got my ACK\n");
 						sofia_media_activate_rtp(tech_pvt);
 						switch_core_media_proxy_remote_addr(tech_pvt->session, r_sdp);
@@ -1727,10 +1651,10 @@ static void our_sofia_event_callback(nua_event_t event,
 						sofia_clear_flag(tech_pvt, TFLAG_PASS_ACK);
 
 					}
-
+					
 				}
-
-
+				
+				
 				if (sofia_test_flag(tech_pvt, TFLAG_PASS_ACK)) {
 					switch_core_session_t *other_session;
 
@@ -1770,9 +1694,6 @@ static void our_sofia_event_callback(nua_event_t event,
 		break;
 	case nua_i_bye:
 		sofia_handle_sip_i_bye(session, status, phrase, nua, profile, nh, sofia_private, sip, de, tags);
-		break;
-	case nua_r_bye:
-		sofia_handle_sip_r_bye(session, status, phrase, nua, profile, nh, sofia_private, sip, de, tags);
 		break;
 	case nua_r_notify:
 		if (session) {
@@ -1886,7 +1807,7 @@ static void our_sofia_event_callback(nua_event_t event,
 				}
 
 
-				if ((refer_to = sip_header_as_string(nua_handle_home(nh), (void *) sip->sip_refer_to))) {
+				if ((refer_to = sip_header_as_string(nua_handle_home(nh), (void *) sip->sip_refer_to))) {					
 					if ((iparams = strchr(refer_to, ';'))) {
 						*iparams++ = '\0';
 
@@ -1999,7 +1920,7 @@ static void our_sofia_event_callback(nua_event_t event,
 					to_user = "n/a";
 					to_host = "n/a";
 				}
-
+				
 				while (ap) {
 					switch_snprintf(accept_header + strlen(accept_header), sizeof(accept_header) - strlen(accept_header),
 									"%s%s ", ap->ac_type, ap->ac_next ? "," : "");
@@ -2072,7 +1993,7 @@ static void our_sofia_event_callback(nua_event_t event,
 					switch_event_fire(&event);
 				}
 
-
+				
 				if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_UNREGISTER) == SWITCH_STATUS_SUCCESS) {
 					switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "profile-name", profile->name);
 					switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "from-user", sofia_private->user);
@@ -2082,7 +2003,7 @@ static void our_sofia_event_callback(nua_event_t event,
 					switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "reason", "socket-disconnection");
 					switch_event_fire(&event);
 				}
-
+				
 
 				sofia_reg_check_socket(profile, sofia_private->call_id, sofia_private->network_ip, sofia_private->network_port);
 			        nua_handle_destroy(nh);
@@ -2441,7 +2362,7 @@ void sofia_event_callback(nua_event_t event,
 	case nua_i_notify:
 	case nua_i_info:
 
-
+		
 		if (event == nua_i_invite) {
 			if (sip->sip_session_expires && profile->minimum_session_expires) {
 				if (sip->sip_session_expires->x_delta < profile->minimum_session_expires) {
@@ -2517,8 +2438,7 @@ void sofia_event_callback(nua_event_t event,
 			if (uuid) {
 				if ((session = switch_core_session_locate(uuid))) {
 					tech_pvt = switch_core_session_get_private(session);
-					switch_copy_string(sofia_private->uuid_str, switch_core_session_get_uuid(session), sizeof(sofia_private->uuid_str));
-					sofia_private->uuid = sofia_private->uuid_str;
+					switch_copy_string(sofia_private->uuid, switch_core_session_get_uuid(session), sizeof(sofia_private->uuid));
 					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Re-attaching to session %s\n", sofia_private->uuid);
 					de->init_session = session;
 					sofia_clear_flag(tech_pvt, TFLAG_BYE);
@@ -2612,8 +2532,7 @@ void sofia_event_callback(nua_event_t event,
 			goto end;
 		}
 
-		switch_copy_string(sofia_private->uuid_str, switch_core_session_get_uuid(session), sizeof(sofia_private->uuid_str));
-		sofia_private->uuid = sofia_private->uuid_str;
+		switch_copy_string(sofia_private->uuid, switch_core_session_get_uuid(session), sizeof(sofia_private->uuid));
 
 		de->init_session = session;
 		switch_core_session_queue_signal_data(session, de);
@@ -2971,7 +2890,7 @@ void *SWITCH_THREAD_FUNC sofia_profile_worker_thread_run(switch_thread_t *thread
 					sofia_reg_check_expire(profile, now, 0);
 					ireg_loops = 0;
 				}
-
+	
 				if(++iping_loops >= (uint32_t)profile->iping_freq) {
 					time_t now = switch_epoch_time_now(NULL);
 					sofia_reg_check_ping_expire(profile, now, profile->iping_seconds);
@@ -2989,7 +2908,7 @@ void *SWITCH_THREAD_FUNC sofia_profile_worker_thread_run(switch_thread_t *thread
 		}
 
 		if (switch_queue_pop_timeout(mod_sofia_globals.general_event_queue, &pop, 100000) == SWITCH_STATUS_SUCCESS) {
-
+			
 			do {
 				switch_event_t *event = (switch_event_t *) pop;
 				general_event_handler(event);
@@ -3040,7 +2959,7 @@ switch_thread_t *launch_sofia_worker_thread(sofia_profile_t *profile)
 		if ((xprofile = switch_xml_find_child(xprofiles, "profile", "name", profile->name))) {
 
 			if ((gateways_tag = switch_xml_child(xprofile, "gateways"))) {
-				parse_gateways(profile, gateways_tag, NULL);
+				parse_gateways(profile, gateways_tag);
 			}
 
 			if ((domains_tag = switch_xml_child(xprofile, "domains"))) {
@@ -3163,7 +3082,6 @@ void *SWITCH_THREAD_FUNC sofia_profile_thread_run(switch_thread_t *thread, void 
 								  NTATAG_TCP_RPORT(0),
 								  NTATAG_TLS_RPORT(0),
 								  NUTAG_RETRY_AFTER_ENABLE(0),
-								  NUTAG_AUTO_INVITE_100(0),
 								  TAG_IF(!strchr(profile->sipip, ':'),
 										 SOATAG_AF(SOA_AF_IP4_ONLY)),
 								  TAG_IF(strchr(profile->sipip, ':'),
@@ -3263,7 +3181,6 @@ void *SWITCH_THREAD_FUNC sofia_profile_thread_run(switch_thread_t *thread, void 
 				   NUTAG_ALLOW_EVENTS("hold"),
 				   NUTAG_ALLOW_EVENTS("conference"),
 				   NUTAG_APPL_METHOD("OPTIONS"),
-				   NUTAG_APPL_METHOD("INVITE"),
 				   NUTAG_APPL_METHOD("REFER"),
 				   NUTAG_APPL_METHOD("REGISTER"),
 				   NUTAG_APPL_METHOD("NOTIFY"), NUTAG_APPL_METHOD("INFO"), NUTAG_APPL_METHOD("ACK"), NUTAG_APPL_METHOD("SUBSCRIBE"),
@@ -3527,64 +3444,12 @@ void launch_sofia_profile_thread(sofia_profile_t *profile)
 	switch_thread_create(&profile->thread, thd_attr, sofia_profile_thread_run, profile, profile->pool);
 }
 
-static int is_packet_begin_or_end(char *mybuf)
-{
-	if (!strncasecmp( mybuf, "recv ", 3) || !strncasecmp( mybuf, "send ", 3) ) {
-		// Buffer starts with "recv" or "send", this means it's a new packet
-		if (strstr(mybuf, "------------------------------------------------------------------------") != NULL) {
-			// Buffer also contains the dahsed line, this is good, the complete "header" so to speak
-			return 1;
-		}
-	} else if (!strcmp(mybuf, "   ------------------------------------------------------------------------\n")) {
-		// Buffer only has the dashed line, this means it is the end of a packet
-		return 2;
-	}
-	return 0;
-}
-
 static void logger(void *logarg, char const *fmt, va_list ap)
 {
-	filter_packet_state_t filter_packet_state;
-    char buf[1024];
-    static switch_stream_handle_t packetstream = { 0 };
-    static switch_bool_t print_this_packet = SWITCH_FALSE;
-    static int ovector[30];
+	if (!fmt) return;
 
-    va_list temp_ap;
-    va_copy(temp_ap,ap);
-
-    if (!fmt) return;
-
-    vsnprintf( buf, 1024, fmt, temp_ap);
-	buf[sizeof(buf)-1] = '\0';
-
-    if (mod_sofia_globals.filtering) {
-    	if (switch_regex_perform( buf, mod_sofia_globals.filter_expression, &mod_sofia_globals.filter_re, ovector, sizeof(ovector) / sizeof(ovector[0]) ) > 0) {
-    		print_this_packet = SWITCH_TRUE;
-    	}
-
-    	filter_packet_state = is_packet_begin_or_end(buf);
-
-		if ( filter_packet_state == FILTER_BEGIN ) {
-			print_this_packet = SWITCH_FALSE;
-			SWITCH_STANDARD_STREAM(packetstream);
-			packetstream.write_function(&packetstream, "%s", buf);
-
-    	} else if ( filter_packet_state == FILTER_END ) {
-			if ( print_this_packet == SWITCH_TRUE ) {
-				switch_log_printf(SWITCH_CHANNEL_LOG_CLEAN, mod_sofia_globals.tracelevel, "\nFILTER REGEX (%s) FOUND IN: \n <<<%s>>>\n", mod_sofia_globals.filter_expression, (char *)packetstream.data );
-			}
-			switch_safe_free(packetstream.data);
-
-    	} else {
-			packetstream.write_function(&packetstream, "%s", buf);
-    	}
-    } else {
-    	switch_log_printf(SWITCH_CHANNEL_LOG_CLEAN, mod_sofia_globals.tracelevel, "%s", buf	);
-    }
-	buf[0] = '\0';
+	switch_log_vprintf(SWITCH_CHANNEL_LOG_CLEAN, mod_sofia_globals.tracelevel, fmt, ap);
 }
-
 
 static su_log_t *sofia_get_logger(const char *name)
 {
@@ -3718,7 +3583,7 @@ static void parse_gateway_subscriptions(sofia_profile_t *profile, sofia_gateway_
 	}
 }
 
-static void parse_gateways(sofia_profile_t *profile, switch_xml_t gateways_tag, const char *gwname)
+static void parse_gateways(sofia_profile_t *profile, switch_xml_t gateways_tag)
 {
 	switch_xml_t gateway_tag, param = NULL, x_params, gw_subs_tag;
 	sofia_gateway_t *gp;
@@ -3730,11 +3595,6 @@ static void parse_gateways(sofia_profile_t *profile, switch_xml_t gateways_tag, 
 
 		if (zstr(name) || switch_regex_match(name, "^[\\w\\.\\-\\_]+$") != SWITCH_STATUS_SUCCESS) {
 			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Ignoring invalid name '%s'\n", name ? name : "NULL");
-			free(pkey);
-			goto skip;
-		}
-
-		if (gwname && strcmp(gwname, name)) {
 			free(pkey);
 			goto skip;
 		}
@@ -3875,7 +3735,7 @@ static void parse_gateways(sofia_profile_t *profile, switch_xml_t gateways_tag, 
 					ping_min = atoi(val);
 				} else if (!strcmp(var, "ping-user-agent")) {
 					options_user_agent = val;
-				} else if (!strcmp(var, "ping-monitoring")) { // if true then every gw ping result will fire a gateway status event
+				} else if (!strcmp(var, "ping-monitoring")) { // if true then every gw ping result will fire a gateway status event 
 					ping_monitoring = switch_true(val);
 				} else if (!strcmp(var, "proxy")) {
 					proxy = val;
@@ -4180,7 +4040,7 @@ static void parse_domain_tag(sofia_profile_t *profile, switch_xml_t x_domain_tag
 		/* Backwards Compatibility */
 		for (ut = switch_xml_child(x_domain_tag, "user"); ut; ut = ut->next) {
 			if (((gateways_tag = switch_xml_child(ut, "gateways")))) {
-				parse_gateways(profile, gateways_tag, NULL);
+				parse_gateways(profile, gateways_tag);
 			}
 		}
 		/* New Method with <groups> tags and users are now inside a <users> tag */
@@ -4189,7 +4049,7 @@ static void parse_domain_tag(sofia_profile_t *profile, switch_xml_t x_domain_tag
 				for (uts = switch_xml_child(gt, "users"); uts; uts = uts->next) {
 					for (ut = switch_xml_child(uts, "user"); ut; ut = ut->next) {
 						if (((gateways_tag = switch_xml_child(ut, "gateways")))) {
-							parse_gateways(profile, gateways_tag, NULL);
+							parse_gateways(profile, gateways_tag);
 						}
 					}
 				}
@@ -4360,51 +4220,6 @@ switch_status_t sofia_init(void)
 	return SWITCH_STATUS_SUCCESS;
 }
 
-switch_status_t config_gateway(const char *profile_name, const char *gateway_name)
-{
-	switch_xml_t cfg, xml = NULL, xprofiles, xprofile, gateways_tag;
-	switch_status_t status = SWITCH_STATUS_SUCCESS;
-	sofia_profile_t *profile = NULL;
-	switch_event_t *params = NULL;
-	const char *cf = "sofia.conf";
-
-	if (zstr(profile_name) || !(profile = sofia_glue_find_profile(profile_name))) {
-		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "Profile [%s] does not exist.\n", profile_name);
-		status = SWITCH_STATUS_FALSE;
-		return status;
-	}
-
-	switch_event_create(&params, SWITCH_EVENT_REQUEST_PARAMS);
-	switch_assert(params);
-	switch_event_add_header_string(params, SWITCH_STACK_BOTTOM, "profile", profile_name);
-	switch_event_add_header_string(params, SWITCH_STACK_BOTTOM, "reconfig", "true");
-	switch_event_add_header_string(params, SWITCH_STACK_BOTTOM, "gateway", gateway_name);
-
-	if (!(xml = switch_xml_open_cfg(cf, &cfg, params))) {
-		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Open of %s failed\n", gateway_name);
-		status = SWITCH_STATUS_FALSE;
-		goto done;
-	}
-
-	if ((xprofiles = switch_xml_child(cfg, "profiles"))) {
-		if ((xprofile = switch_xml_find_child(xprofiles, "profile", "name", profile->name))) {
-			if ((gateways_tag = switch_xml_child(xprofile, "gateways"))) {
-				parse_gateways(profile, gateways_tag, strcmp(gateway_name, "_all_") ? gateway_name : NULL);
-			}
-		}
-	}
-
-	status = SWITCH_STATUS_SUCCESS;
-
-done:
-
-	if (profile) sofia_glue_release_profile(profile);
-	if (xml) switch_xml_free(xml);
-
-	switch_event_destroy(&params);
-
-	return status;
-}
 
 switch_status_t config_sofia(sofia_config_t reload, char *profile_name)
 {
@@ -4527,7 +4342,6 @@ switch_status_t config_sofia(sofia_config_t reload, char *profile_name)
 					}
 
 					profile->tls_verify_policy = TPTLS_VERIFY_NONE;
-					sofia_set_pflag(profile, PFLAG_AUTO_INVITE_100);
 					/* lib default */
 					profile->tls_verify_depth = 2;
 
@@ -4588,7 +4402,6 @@ switch_status_t config_sofia(sofia_config_t reload, char *profile_name)
 					//sofia_set_pflag(profile, PFLAG_PRESENCE_ON_FIRST_REGISTER);
 
 					sofia_clear_pflag(profile, PFLAG_CHANNEL_XML_FETCH_ON_NIGHTMARE_TRANSFER);
-					sofia_clear_pflag(profile, PFLAG_MAKE_EVERY_TRANSFER_A_NIGHTMARE);
 					sofia_clear_pflag(profile, PFLAG_FIRE_TRANFER_EVENTS);
 					sofia_clear_pflag(profile, PFLAG_BLIND_AUTH_ENFORCE_RESULT);
 					profile->shutdown_type = "false";
@@ -4635,7 +4448,7 @@ switch_status_t config_sofia(sofia_config_t reload, char *profile_name)
 					int found = 1; // Used to break up long if/elseif chain (MSVC2015 fails (parser stack overflow) otherwise)
 
 					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "%s [%s]\n", var, val);
-
+					
 					if (!strcasecmp(var, "debug") && val) {
 						profile->debug = atoi(val);
 					} else if (!strcasecmp(var, "parse-invite-tel-params")) {
@@ -4833,12 +4646,6 @@ switch_status_t config_sofia(sofia_config_t reload, char *profile_name)
 							sofia_set_pflag(profile, PFLAG_ENABLE_CHAT);
 						} else {
 							sofia_clear_pflag(profile, PFLAG_ENABLE_CHAT);
-						}
-					} else if (!strcasecmp(var, "fire-bye-response-events")) {
-						if (switch_true(val)) {
-							sofia_set_pflag(profile, PFLAG_FIRE_BYE_RESPONSE_EVENTS);
-						} else {
-							sofia_clear_pflag(profile, PFLAG_FIRE_BYE_RESPONSE_EVENTS);
 						}
 					} else if (!strcasecmp(var, "fire-message-events")) {
 						if (switch_true(val)) {
@@ -5343,17 +5150,11 @@ switch_status_t config_sofia(sofia_config_t reload, char *profile_name)
 						} else {
 							sofia_clear_pflag(profile, PFLAG_SECURE);
 						}
-					} else if (!strcasecmp(var, "auto-invite-100")) {
-						if (switch_true(val)) {
-							sofia_set_pflag(profile, PFLAG_AUTO_INVITE_100);
-						} else {
-							sofia_clear_pflag(profile, PFLAG_AUTO_INVITE_100);
-						}
 					} else {
 						found = 0;
 					}
 					if (found) continue;
-
+					
 					if (!strcasecmp(var, "multiple-registrations")) {
 						if (val && !strcasecmp(val, "call-id")) {
 							sofia_set_pflag(profile, PFLAG_MULTIREG);
@@ -5883,12 +5684,6 @@ switch_status_t config_sofia(sofia_config_t reload, char *profile_name)
 						}  else {
 							sofia_clear_pflag(profile, PFLAG_CHANNEL_XML_FETCH_ON_NIGHTMARE_TRANSFER);
 						}
-					} else if (!strcasecmp(var, "make-every-transfer-a-nightmare")) {
-						if(switch_true(val)) {
-							sofia_set_pflag(profile, PFLAG_MAKE_EVERY_TRANSFER_A_NIGHTMARE);
-						}  else {
-							sofia_clear_pflag(profile, PFLAG_MAKE_EVERY_TRANSFER_A_NIGHTMARE);
-						}
 					} else if (!strcasecmp(var, "fire-transfer-events")) {
 						if(switch_true(val)) {
 							sofia_set_pflag(profile, PFLAG_FIRE_TRANFER_EVENTS);
@@ -5982,7 +5777,7 @@ switch_status_t config_sofia(sofia_config_t reload, char *profile_name)
 					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Setting nonce TTL to 60 seconds\n");
 					profile->nonce_ttl = 60;
 				}
-
+				
 				if (!profile->max_auth_validity) {
 					switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Setting MAX Auth Validity to 0 Attempts\n");
 					profile->max_auth_validity = 0;
@@ -6071,7 +5866,7 @@ switch_status_t config_sofia(sofia_config_t reload, char *profile_name)
 					}
 
 					if ((gateways_tag = switch_xml_child(xprofile, "gateways"))) {
-						parse_gateways(profile, gateways_tag, NULL);
+						parse_gateways(profile, gateways_tag);
 					}
 
 					status = SWITCH_STATUS_SUCCESS;
@@ -6274,14 +6069,14 @@ static void sofia_handle_sip_r_options(switch_core_session_t *session, int statu
 					gateway->uptime = switch_time_now();
 					do_fire_gateway_state_event = SWITCH_TRUE;
 				}
-
+				
 				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING,
 								  "Ping succeeded %s with code %d - count %d/%d/%d, state %s\n",
 								  gateway->name, status, gateway->ping_min, gateway->ping_count, gateway->ping_max, sofia_gateway_status_name(gateway->status));
 			}
 			if (gateway->ping_sent) {
 				gateway->ping_time = (float)(switch_time_now() - gateway->ping_sent) / 1000;
-				gateway->ping_sent = 0;
+				gateway->ping_sent = 0;					
 			}
 		} else {
 			if (gateway->state == REG_STATE_REGED) {
@@ -6555,8 +6350,6 @@ static void sofia_handle_sip_r_invite(switch_core_session_t *session, int status
 
 		if ((status == 180 || status == 183 || status > 199)) {
 			const char *vval;
-
-			sofia_set_accept_language_channel_variable(channel, sip);
 
 			if (status > 199) {
 				sofia_glue_set_extra_headers(session, sip, SOFIA_SIP_RESPONSE_HEADER_PREFIX);
@@ -6859,7 +6652,7 @@ static void sofia_handle_sip_r_invite(switch_core_session_t *session, int status
 					}
 
 					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Passing %d %s to other leg\n%s\n", status, phrase, switch_str_nil(r_sdp));
-
+					
 					if (switch_core_session_compare(session, other_session)) {
 						private_object_t *other_tech_pvt = switch_core_session_get_private(other_session);
 						sofia_set_flag(other_tech_pvt, TFLAG_PASS_ACK);
@@ -6874,7 +6667,7 @@ static void sofia_handle_sip_r_invite(switch_core_session_t *session, int status
 					} else if (status > 299) {
 						switch_core_media_reset_t38(session);
 						switch_core_media_reset_t38(other_session);
-					} else if (status == 200 && switch_channel_test_flag(channel, CF_T38_PASSTHRU) &&
+					} else if (status == 200 && switch_channel_test_flag(channel, CF_T38_PASSTHRU) && 
 							   has_t38 && sip->sip_payload && sip->sip_payload->pl_data) {
 						switch_t38_options_t *t38_options = switch_core_media_extract_t38_options(session, sip->sip_payload->pl_data);
 
@@ -7229,10 +7022,10 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 
 		tech_pvt->mparams.last_sdp_str = NULL;
 		tech_pvt->mparams.last_sdp_response = NULL;
-
+		
 		if (r_sdp && (switch_channel_test_flag(channel, CF_PROXY_MODE) || switch_channel_test_flag(channel, CF_PROXY_MEDIA))) {
 			const char *var;
-
+			
 			if ((var = switch_channel_get_variable(channel, "bypass_media_sdp_filter"))) {
 				if ((patched_sdp = switch_core_media_process_sdp_filter(r_sdp, var, session))) {
 					r_sdp = patched_sdp;
@@ -7242,7 +7035,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 
 		if ((switch_channel_test_flag(channel, CF_PROXY_MODE) || switch_channel_test_flag(channel, CF_PROXY_MEDIA)) ||
 			(sofia_test_flag(profile, TFLAG_INB_NOMEDIA) || sofia_test_flag(profile, TFLAG_PROXY_MEDIA))) {
-
+			
 			/* This marr in our code brought to you by people who can't read........ */
 			if (profile->ndlb & SM_NDLB_ALLOW_BAD_IANANAME && r_sdp && (p = (char *) switch_stristr("g729a/8000", r_sdp))) {
 				p += 4;
@@ -7300,13 +7093,11 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 			} else {
 				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Remote SDP:\n%s\n", r_sdp);
 				tech_pvt->mparams.remote_sdp_str = switch_core_session_strdup(session, r_sdp);
-				if (switch_channel_direction(channel) == SWITCH_CALL_DIRECTION_OUTBOUND) {
-					switch_channel_mark_pre_answered(channel);
-				}
+
                 //if ((sofia_test_flag(tech_pvt, TFLAG_LATE_NEGOTIATION) || switch_channel_direction(channel) == SWITCH_CALL_DIRECTION_OUTBOUND)) {
 				//	switch_core_media_set_sdp_codec_string(session, r_sdp, status < 200 ? SDP_TYPE_REQUEST : SDP_TYPE_RESPONSE);
 				//}
-				switch_core_media_set_sdp_codec_string(session, r_sdp, SDP_TYPE_REQUEST);
+
 				sofia_glue_pass_sdp(tech_pvt, (char *) r_sdp);
 				sofia_set_flag(tech_pvt, TFLAG_NEW_SDP);
 
@@ -7411,7 +7202,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 			if (switch_channel_test_flag(channel, CF_PROXY_MODE) && r_sdp) {
 				char ibuf[35] = "", pbuf[35] = "";
 				const char *ptr;
-
+			
 				if ((ptr = switch_stristr("c=IN IP4", r_sdp))) {
 					int i = 0;
 
@@ -7429,7 +7220,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 
 				if ((ptr = switch_stristr("m=audio", r_sdp))) {
 					int i = 0;
-
+		
 					ptr += 7;
 
 					while(*ptr == ' ') {
@@ -7441,7 +7232,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 
 					switch_channel_set_variable(channel, SWITCH_REMOTE_MEDIA_PORT_VARIABLE, pbuf);
 				}
-
+			
 				if (switch_channel_test_flag(channel, CF_PROXY_MEDIA) &&  switch_channel_direction(tech_pvt->channel) == SWITCH_CALL_DIRECTION_INBOUND) {
 					switch_channel_set_variable(channel, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "PROXY MEDIA");
 				}
@@ -7511,26 +7302,26 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 			}
 
 			if (switch_channel_test_flag(channel, CF_3P_NOMEDIA_REQUESTED)) {
-
+				
 				if (switch_channel_test_flag(channel, CF_3P_NOMEDIA_REQUESTED_BLEG)) {
 					switch_core_session_t *other_session;
-
+					
 					switch_channel_clear_flag(channel, CF_3P_NOMEDIA_REQUESTED_BLEG);
-
+					
 					if (switch_core_session_get_partner(session, &other_session) == SWITCH_STATUS_SUCCESS) {
 						if (switch_core_session_compare(session, other_session)) {
 							//switch_channel_t *other_channel = switch_core_session_get_channel(other_session);
 							private_object_t *other_tech_pvt = switch_core_session_get_private(other_session);
 
 							sofia_glue_clear_soa(other_session, SWITCH_TRUE);
-
+							
 							if (sofia_use_soa(other_tech_pvt)) {
 								nua_ack(other_tech_pvt->nh,
 										TAG_IF(!zstr(other_tech_pvt->user_via), SIPTAG_VIA_STR(other_tech_pvt->user_via)),
 										SIPTAG_CONTACT_STR(other_tech_pvt->reply_contact),
 										SOATAG_USER_SDP_STR(r_sdp),
 										SOATAG_REUSE_REJECTED(1),
-										SOATAG_RTP_SELECT(1),
+										SOATAG_RTP_SELECT(1), 
 										SOATAG_AUDIO_AUX("cn telephone-event"),
 										TAG_IF(sofia_test_pflag(other_tech_pvt->profile, PFLAG_DISABLE_100REL), NUTAG_INCLUDE_EXTRA_SDP(1)),
 										TAG_END());
@@ -7549,22 +7340,22 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 									TAG_IF(!zstr(tech_pvt->user_via), SIPTAG_VIA_STR(tech_pvt->user_via)),
 									SIPTAG_CONTACT_STR(tech_pvt->reply_contact),
 									TAG_END());
-
+							
 						}
 						switch_core_session_rwunlock(other_session);
 					}
 				} else {
 					switch_channel_set_variable(channel, SWITCH_R_SDP_VARIABLE, r_sdp);
 				}
-
+				
 				switch_channel_clear_flag(channel, CF_3P_NOMEDIA_REQUESTED);
 				goto done;
 
 			} else if (switch_channel_test_flag(channel, CF_3P_MEDIA_REQUESTED)) {
 				uint8_t match = 0;
-
+				
 				switch_channel_clear_flag(channel, CF_PROXY_MODE);
-
+				
 				switch_core_media_choose_port(tech_pvt->session, SWITCH_MEDIA_TYPE_AUDIO, 0);
 				switch_core_media_prepare_codecs(tech_pvt->session, SWITCH_FALSE);
 
@@ -7580,7 +7371,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 					switch_core_media_gen_local_sdp(session, SDP_TYPE_RESPONSE, NULL, 0, NULL, 0);
 					switch_channel_set_variable(channel, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "RECEIVED");
 					sofia_set_flag_locked(tech_pvt, TFLAG_READY);
-
+					
 					sofia_set_flag(tech_pvt, TFLAG_SDP);
 					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "RESTABLISH MEDIA SDP:\n%s\n", tech_pvt->mparams.local_sdp_str);
 
@@ -7597,7 +7388,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 								SIPTAG_CONTACT_STR(tech_pvt->reply_contact),
 								SOATAG_USER_SDP_STR(tech_pvt->mparams.local_sdp_str),
 								SOATAG_REUSE_REJECTED(1),
-								SOATAG_RTP_SELECT(1),
+								SOATAG_RTP_SELECT(1), 
 								SOATAG_AUDIO_AUX("cn telephone-event"),
 								TAG_IF(sofia_test_pflag(tech_pvt->profile, PFLAG_DISABLE_100REL), NUTAG_INCLUDE_EXTRA_SDP(1)),
 								TAG_END());
@@ -7611,7 +7402,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 								SOATAG_AUDIO_AUX("cn telephone-event"),
 								TAG_END());
 					}
-
+					
 					switch_channel_clear_flag(channel, CF_3P_MEDIA_REQUESTED);
 					goto done;
 				}
@@ -7671,7 +7462,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 					goto done;
 				}
 			}
-
+			
 
 			if (r_sdp && !sofia_test_flag(tech_pvt, TFLAG_SDP)) {
 				if (switch_channel_test_flag(channel, CF_PROXY_MODE)) {
@@ -7875,7 +7666,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 			}
 
 			goto done;
-
+			
 		} else {
 			ss_state = nua_callstate_completed;
 			goto state_process;
@@ -7940,7 +7731,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 
 						goto done;
 					}
-
+					
 					if (switch_core_session_get_partner(session, &other_session) == SWITCH_STATUS_SUCCESS) {
 						switch_core_session_message_t *msg;
 						private_object_t *other_tech_pvt;
@@ -7948,8 +7739,8 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 
 						switch_core_media_clear_rtp_flag(other_session, SWITCH_MEDIA_TYPE_AUDIO, SWITCH_RTP_FLAG_AUTOADJ);
 
-
-						if (switch_channel_test_flag(channel, CF_PROXY_MODE) && !is_t38 &&
+						
+						if (switch_channel_test_flag(channel, CF_PROXY_MODE) && !is_t38 && 
 							((profile->media_options & MEDIA_OPT_MEDIA_ON_HOLD) || media_on_hold)) {
 							if (switch_stristr("sendonly", r_sdp) || switch_stristr("0.0.0.0", r_sdp) || switch_stristr("inactive", r_sdp)) {
 								tech_pvt->mparams.hold_laps = 1;
@@ -7962,7 +7753,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 									//if (switch_channel_direction(tech_pvt->channel) == SWITCH_CALL_DIRECTION_INBOUND) {
 										//const char *r_sdp = switch_channel_get_variable(channel, SWITCH_R_SDP_VARIABLE);
 
-
+										
 										switch_core_media_prepare_codecs(tech_pvt->session, SWITCH_TRUE);
 										if (sofia_media_tech_media(tech_pvt, r_sdp) != SWITCH_STATUS_SUCCESS) {
 											switch_channel_set_variable(channel, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "CODEC NEGOTIATION ERROR");
@@ -8071,7 +7862,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 						switch_channel_hangup(channel, SWITCH_CAUSE_DESTINATION_OUT_OF_ORDER);
 					}
 					goto done;
-				} else {
+				} else {					
 					int hold_related = 0;
 
 					if (sofia_test_flag(tech_pvt, TFLAG_SIP_HOLD)) {
@@ -8079,7 +7870,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 					} else if (switch_stristr("sendonly", r_sdp) || switch_stristr("0.0.0.0", r_sdp) || switch_stristr("inactive", r_sdp)) {
 						hold_related = 1;
 					}
-
+					
 					if (!is_t38 && hold_related && switch_core_session_get_partner(session, &other_session) == SWITCH_STATUS_SUCCESS) {
 						if (switch_core_session_compare(session, other_session)) {
 							switch_core_session_message_t *msg;
@@ -8099,9 +7890,9 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 									switch_core_session_rwunlock(other_session);
 									goto done;
 								}
-
+								
 								msg = switch_core_session_alloc(other_session, sizeof(*msg));
-
+								
 								if (switch_stristr("inactive", r_sdp)) {
 									sofia_set_flag_locked(other_tech_pvt, TFLAG_SIP_HOLD_INACTIVE);
 									//switch_channel_set_variable(channel, "sofia_hold_inactive", "true");
@@ -8134,9 +7925,9 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 								switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Indicating %s to other leg.\n%s\n", hold_msg, r_sdp);
 
 								switch_core_session_queue_message(other_session, msg);
-
-
-
+								
+							
+								
 								switch_core_media_gen_local_sdp(session, SDP_TYPE_RESPONSE, NULL, 0, NULL, 0);
 								if (sofia_use_soa(tech_pvt)){
 									nua_respond(tech_pvt->nh, SIP_200_OK,
@@ -8153,7 +7944,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 								}
 								switch_core_session_rwunlock(other_session);
 								goto done;
-							}
+							}							
 						}
 
 						switch_core_session_rwunlock(other_session);
@@ -8218,29 +8009,27 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 					}
 				}
 
-
+				
 				if (is_ok) {
 
 					if (switch_core_session_local_crypto_key(tech_pvt->session, SWITCH_MEDIA_TYPE_AUDIO)) {
 						switch_core_media_gen_local_sdp(session, SDP_TYPE_RESPONSE, NULL, 0, NULL, 0);
 					}
 
-					if (!switch_channel_test_flag(tech_pvt->channel, CF_AWAITING_STREAM_CHANGE)) {
-						if (sofia_use_soa(tech_pvt)) {
-							nua_respond(tech_pvt->nh, SIP_200_OK,
-										SIPTAG_CONTACT_STR(tech_pvt->reply_contact),
-										SOATAG_USER_SDP_STR(tech_pvt->mparams.local_sdp_str),
-										SOATAG_REUSE_REJECTED(1),
-										SOATAG_AUDIO_AUX("cn telephone-event"),
-										TAG_IF(sofia_test_pflag(profile, PFLAG_DISABLE_100REL), NUTAG_INCLUDE_EXTRA_SDP(1)), TAG_END());
-						} else {
-							nua_respond(tech_pvt->nh, SIP_200_OK,
-										NUTAG_MEDIA_ENABLE(0),
-										SIPTAG_CONTACT_STR(tech_pvt->reply_contact),
-										SIPTAG_CONTENT_TYPE_STR("application/sdp"), SIPTAG_PAYLOAD_STR(tech_pvt->mparams.local_sdp_str), TAG_END());
-						}
+					if (sofia_use_soa(tech_pvt)) {
+						nua_respond(tech_pvt->nh, SIP_200_OK,
+									SIPTAG_CONTACT_STR(tech_pvt->reply_contact),
+									SOATAG_USER_SDP_STR(tech_pvt->mparams.local_sdp_str),
+									SOATAG_REUSE_REJECTED(1),
+									SOATAG_AUDIO_AUX("cn telephone-event"),
+									TAG_IF(sofia_test_pflag(profile, PFLAG_DISABLE_100REL), NUTAG_INCLUDE_EXTRA_SDP(1)), TAG_END());
+					} else {
+						nua_respond(tech_pvt->nh, SIP_200_OK,
+									NUTAG_MEDIA_ENABLE(0),
+									SIPTAG_CONTACT_STR(tech_pvt->reply_contact),
+									SIPTAG_CONTENT_TYPE_STR("application/sdp"), SIPTAG_PAYLOAD_STR(tech_pvt->mparams.local_sdp_str), TAG_END());
 					}
-
+					
 					if (switch_event_create_subclass(&s_event, SWITCH_EVENT_CUSTOM, MY_EVENT_REINVITE) == SWITCH_STATUS_SUCCESS) {
 						switch_event_add_header_string(s_event, SWITCH_STACK_BOTTOM, "Unique-ID", switch_core_session_get_uuid(session));
 						switch_event_fire(&s_event);
@@ -8297,7 +8086,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 				if (switch_core_session_get_partner(session, &other_session) == SWITCH_STATUS_SUCCESS) {
 					other_channel = switch_core_session_get_channel(other_session);
 					switch_channel_pass_sdp(channel, other_channel, r_sdp);
-
+					
 					if (sofia_test_flag(tech_pvt, TFLAG_3PCC) && sofia_test_pflag(profile, PFLAG_3PCC_PROXY)) {
 						switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "3PCC-PROXY, Got my ACK\n");
 						sofia_set_flag(tech_pvt, TFLAG_3PCC_HAS_ACK);
@@ -8399,7 +8188,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 					if (switch_core_session_get_partner(session, &other_session) == SWITCH_STATUS_SUCCESS) {
 						other_channel = switch_core_session_get_channel(other_session);
 						switch_channel_pass_sdp(channel, other_channel, r_sdp);
-
+						
 						//switch_channel_answer(other_channel);
 						switch_core_session_queue_indication(other_session, SWITCH_MESSAGE_INDICATE_ANSWER);
 
@@ -8415,9 +8204,9 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 				} else {
 					uint8_t match = 0;
 
-
-					match = sofia_media_negotiate_sdp(session, r_sdp, SDP_TYPE_RESPONSE);
-
+					if (tech_pvt->mparams.num_codecs) {
+						match = sofia_media_negotiate_sdp(session, r_sdp, SDP_TYPE_RESPONSE);
+					}
 
 					sofia_set_flag_locked(tech_pvt, TFLAG_ANS);
 
@@ -8484,6 +8273,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 			switch_channel_hangup(channel, cause);
 			ss_state = nua_callstate_terminated;
 		}
+
 
 		if (ss_state == nua_callstate_terminated) {
 			if (tech_pvt->sofia_private) {
@@ -8659,10 +8449,10 @@ static switch_status_t sofia_process_proxy_refer(switch_core_session_t *session,
 {
 	switch_core_session_t *other_session;
 	private_object_t *tech_pvt = switch_core_session_get_private(session);
-
+	
 	if (switch_core_session_get_partner(session, &other_session) == SWITCH_STATUS_SUCCESS) {
 		switch_core_session_message_t *msg;
-
+		
 		tech_pvt->proxy_refer_uuid = switch_core_session_strdup(session, switch_core_session_get_uuid(other_session));
 		msg = switch_core_session_alloc(other_session, sizeof(*msg));
 		MESSAGE_STAMP_FFL(msg);
@@ -8765,559 +8555,564 @@ void sofia_handle_sip_i_refer(nua_t *nua, sofia_profile_t *profile, nua_handle_t
 			sip_replaces_t *replaces;
 			nua_handle_t *bnh = NULL;
 
-			const char *br_a = NULL, *br_b = NULL;
-			char *buf;
-			char *p;
+			if (rep) {
+				const char *br_a = NULL, *br_b = NULL;
+				char *buf;
+				char *p;
 
-			rep = switch_core_session_strdup(session, rep + 9);
+				rep = switch_core_session_strdup(session, rep + 9);
 
-			if ((buf = switch_core_session_alloc(session, strlen(rep) + 1))) {
-				rep = url_unescape(buf, (const char *) rep);
-				if ((p = strchr(rep, ';'))) {
-					*p = '\0';
+				if ((buf = switch_core_session_alloc(session, strlen(rep) + 1))) {
+					rep = url_unescape(buf, (const char *) rep);
+					if ((p = strchr(rep, ';'))) {
+						*p = '\0';
+					}
+					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Replaces: [%s]\n", rep);
+				} else {
+					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Memory Error!\n");
+					goto done;
 				}
-				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Replaces: [%s]\n", rep);
-			} else {
-				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Memory Error!\n");
-				goto done;
-			}
 
-			if ((replaces = sip_replaces_make(home, rep))) {
-				if (!(bnh = nua_handle_by_replaces(nua, replaces))) {
-					if (!(bnh = nua_handle_by_call_id(nua, replaces->rp_call_id))) {
-						bnh = sofia_global_nua_handle_by_replaces(replaces);
+				if ((replaces = sip_replaces_make(home, rep))) {
+					if (!(bnh = nua_handle_by_replaces(nua, replaces))) {
+						if (!(bnh = nua_handle_by_call_id(nua, replaces->rp_call_id))) {
+							bnh = sofia_global_nua_handle_by_replaces(replaces);
+						}
 					}
 				}
-			}
 
-			if (bnh && !sofia_test_pflag(profile, PFLAG_MAKE_EVERY_TRANSFER_A_NIGHTMARE)) {
-				sofia_private_t *b_private = NULL;
-				private_object_t *b_tech_pvt = NULL;
-				switch_core_session_t *b_session = NULL;
+				if (bnh) {
+					sofia_private_t *b_private = NULL;
+					private_object_t *b_tech_pvt = NULL;
+					switch_core_session_t *b_session = NULL;
 
 
-				switch_channel_set_variable(channel_a, SOFIA_REPLACES_HEADER, rep);
-				if ((b_private = nua_handle_magic(bnh))) {
-					int deny_refer_requests = 0;
+					switch_channel_set_variable(channel_a, SOFIA_REPLACES_HEADER, rep);
+					if ((b_private = nua_handle_magic(bnh))) {
+						int deny_refer_requests = 0;
 
-					if (!(b_session = switch_core_session_locate(b_private->uuid))) {
-						goto done;
-					}
-					b_tech_pvt = (private_object_t *) switch_core_session_get_private(b_session);
-					channel_b = switch_core_session_get_channel(b_session);
-
-					switch_channel_set_variable(channel_a, "refer_uuid", b_private->uuid);
-					switch_channel_set_variable(channel_b, "transfer_disposition", "replaced");
-
-					br_a = switch_channel_get_partner_uuid(channel_a);
-					br_b = switch_channel_get_partner_uuid(channel_b);
-
-					if (!switch_ivr_uuid_exists(br_a)) {
-						br_a = NULL;
-					}
-
-					if (!switch_ivr_uuid_exists(br_b)) {
-						br_b = NULL;
-					}
-
-					if (channel_a && switch_true(switch_channel_get_variable(channel_a, "deny_refer_requests"))) {
-						deny_refer_requests = 1;
-					}
-
-					if (!deny_refer_requests && channel_b && switch_true(switch_channel_get_variable(channel_b, "deny_refer_requests"))) {
-						deny_refer_requests = 1;
-					}
-
-					if (!deny_refer_requests && br_a) {
-						switch_core_session_t *a_session;
-						if ((a_session = switch_core_session_locate(br_a))) {
-							switch_channel_t *a_channel = switch_core_session_get_channel(a_session);
-
-							if (a_channel && switch_true(switch_channel_get_variable(a_channel, "deny_refer_requests"))) {
-								deny_refer_requests = 1;
-							}
-							switch_core_session_rwunlock(a_session);
+						if (!(b_session = switch_core_session_locate(b_private->uuid))) {
+							goto done;
 						}
-					}
+						b_tech_pvt = (private_object_t *) switch_core_session_get_private(b_session);
+						channel_b = switch_core_session_get_channel(b_session);
 
-					if (!deny_refer_requests && br_b) {
-						switch_core_session_t *b_session;
-						if ((b_session = switch_core_session_locate(br_b))) {
-							switch_channel_t *b_channel = switch_core_session_get_channel(b_session);
+						switch_channel_set_variable(channel_a, "refer_uuid", b_private->uuid);
+						switch_channel_set_variable(channel_b, "transfer_disposition", "replaced");
 
-							if (b_channel && switch_true(switch_channel_get_variable(b_channel, "deny_refer_requests"))) {
-								deny_refer_requests = 1;
-							}
-							switch_core_session_rwunlock(b_session);
+						br_a = switch_channel_get_partner_uuid(channel_a);
+						br_b = switch_channel_get_partner_uuid(channel_b);
+
+						if (!switch_ivr_uuid_exists(br_a)) {
+							br_a = NULL;
 						}
-					}
 
-					if (deny_refer_requests) {
-						switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_NOTICE, "Denying Attended Transfer, variable [deny_refer_requests] was set to true\n");
+						if (!switch_ivr_uuid_exists(br_b)) {
+							br_b = NULL;
+						}
 
-						nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
-							NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"),
-							SIPTAG_PAYLOAD_STR("SIP/2.0 403 Forbidden\r\n"), SIPTAG_EVENT_STR(etmp), TAG_END());
+						if (channel_a && switch_true(switch_channel_get_variable(channel_a, "deny_refer_requests"))) {
+							deny_refer_requests = 1;
+						}
 
-					} else if (switch_channel_test_flag(channel_b, CF_ORIGINATOR)) {
-						switch_core_session_t *a_session;
+						if (!deny_refer_requests && channel_b && switch_true(switch_channel_get_variable(channel_b, "deny_refer_requests"))) {
+							deny_refer_requests = 1;
+						}
 
-						switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_NOTICE,
-										  "Attended Transfer on originating session %s\n", switch_core_session_get_uuid(b_session));
+						if (!deny_refer_requests && br_a) {
+							switch_core_session_t *a_session;
+							if ((a_session = switch_core_session_locate(br_a))) {
+								switch_channel_t *a_channel = switch_core_session_get_channel(a_session);
 
-
-
-						switch_channel_set_variable_printf(channel_b, "transfer_to", "satt:%s", br_a);
-
-						switch_channel_set_variable(channel_b, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "ATTENDED_TRANSFER");
-
-
-						sofia_clear_flag_locked(b_tech_pvt, TFLAG_SIP_HOLD);
-						switch_channel_clear_flag(channel_b, CF_LEG_HOLDING);
-						sofia_clear_flag_locked(tech_pvt, TFLAG_HOLD_LOCK);
-
-						switch_channel_set_variable(channel_b, SWITCH_HOLDING_UUID_VARIABLE, br_a);
-						switch_channel_set_flag(channel_b, CF_XFER_ZOMBIE);
-						switch_channel_set_flag(channel_b, CF_TRANSFER);
-
-
-						if ((a_session = switch_core_session_locate(br_a))) {
-							const char *moh = profile->hold_music;
-							switch_core_session_t *tmpsess = NULL;
-							switch_channel_t *a_channel = switch_core_session_get_channel(a_session);
-							switch_caller_profile_t *prof = switch_channel_get_caller_profile(channel_b);
-							const char *tmp;
-
-							switch_core_event_hook_add_state_change(a_session, xfer_hanguphook);
-							switch_channel_set_variable(a_channel, "att_xfer_kill_uuid", switch_core_session_get_uuid(b_session));
-							switch_channel_set_variable(a_channel, "att_xfer_destination_number", prof->destination_number);
-							switch_channel_set_variable(a_channel, "att_xfer_callee_id_name", prof->callee_id_name);
-							switch_channel_set_variable(a_channel, "att_xfer_callee_id_number", prof->callee_id_number);
-
-							if (profile->media_options & MEDIA_OPT_BYPASS_AFTER_ATT_XFER) {
-								switch_channel_set_flag(a_channel, CF_BYPASS_MEDIA_AFTER_BRIDGE);
-							}
-
-
-							if ((tmp = switch_channel_get_hold_music(a_channel))) {
-								moh = tmp;
-							}
-
-							if (!zstr(moh) && !strcasecmp(moh, "silence")) {
-								moh = NULL;
-							}
-
-							if(sofia_test_pflag(profile, PFLAG_FIRE_TRANFER_EVENTS)) {
-								if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_REPLACED) == SWITCH_STATUS_SUCCESS) {
-									switch_channel_event_set_data(channel_b, event);
-									switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "att_xfer_replaced_by", br_a);
-									switch_event_fire(&event);
+								if (a_channel && switch_true(switch_channel_get_variable(a_channel, "deny_refer_requests"))) {
+									deny_refer_requests = 1;
 								}
+								switch_core_session_rwunlock(a_session);
+							}
+						}
 
-								if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEROR) == SWITCH_STATUS_SUCCESS) {
-									switch_channel_event_set_data(channel_a, event);
-									switch_event_fire(&event);
+						if (!deny_refer_requests && br_b) {
+							switch_core_session_t *b_session;
+							if ((b_session = switch_core_session_locate(br_b))) {
+								switch_channel_t *b_channel = switch_core_session_get_channel(b_session);
+
+								if (b_channel && switch_true(switch_channel_get_variable(b_channel, "deny_refer_requests"))) {
+									deny_refer_requests = 1;
 								}
+								switch_core_session_rwunlock(b_session);
+							}
+						}
 
-								if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEREE) == SWITCH_STATUS_SUCCESS) {
-									switch_channel_event_set_data(a_channel, event);
-									switch_event_fire(&event);
-								}
-							}
-
-							if (moh) {
-								char *xdest;
-								xdest = switch_core_session_sprintf(a_session, "m:\":endless_playback:%s\"park", moh);
-								switch_ivr_session_transfer(a_session, xdest, "inline", NULL);
-							} else {
-								switch_ivr_session_transfer(a_session, "park", "inline", NULL);
-							}
-							if (switch_true(switch_channel_get_variable(channel_a, "recording_follow_transfer"))) {
-								switch_core_media_bug_transfer_recordings(session, a_session);
-							}
-							if (switch_true(switch_channel_get_variable(channel_b, "recording_follow_transfer")) && (tmpsess = switch_core_session_locate(br_a))) {
-								switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_NOTICE,
-										  "Early transfer detected with no media, moving recording bug to other leg\n");
-								switch_core_media_bug_transfer_recordings(b_session, tmpsess);
-								switch_core_session_rwunlock(tmpsess);
-							}
-
-							switch_core_session_rwunlock(a_session);
+						if (deny_refer_requests) {
+							switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_NOTICE, "Denying Attended Transfer, variable [deny_refer_requests] was set to true\n");
 
 							nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
-									   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"), SIPTAG_PAYLOAD_STR("SIP/2.0 200 OK\r\n"), SIPTAG_EVENT_STR(etmp),
-									   TAG_END());
+								NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"),
+								SIPTAG_PAYLOAD_STR("SIP/2.0 403 Forbidden\r\n"), SIPTAG_EVENT_STR(etmp), TAG_END());
 
-							if (b_tech_pvt && !sofia_test_flag(b_tech_pvt, TFLAG_BYE)) {
-								char *q850 = NULL;
-								const char *val = NULL;
+						} else if (switch_channel_test_flag(channel_b, CF_ORIGINATOR)) {
+							switch_core_session_t *a_session;
 
-								sofia_set_flag_locked(b_tech_pvt, TFLAG_BYE);
-								val = switch_channel_get_variable(tech_pvt->channel, "disable_q850_reason");
-								if (!val || switch_true(val)) {
-									q850 = switch_core_session_sprintf(a_session, "Q.850;cause=16;text=\"normal_clearing\"");
-								}
-								nua_bye(b_tech_pvt->nh,
-										SIPTAG_CONTACT(SIP_NONE),
-										TAG_IF(!zstr(q850), SIPTAG_REASON_STR(q850)),
-										TAG_IF(!zstr(tech_pvt->user_via), SIPTAG_VIA_STR(tech_pvt->user_via)), TAG_END());
-
-							}
-						} else {
-							nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
-									   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"),
-									   SIPTAG_PAYLOAD_STR("SIP/2.0 403 Forbidden\r\n"), SIPTAG_EVENT_STR(etmp), TAG_END());
-						}
-
-					} else if (br_a && br_b) {
-						switch_core_session_t *tmp = NULL;
-						switch_event_t *event = NULL;
-
-						switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_NOTICE, "Attended Transfer [%s][%s]\n",
-										  switch_str_nil(br_a), switch_str_nil(br_b));
-
-						if ((tmp = switch_core_session_locate(br_b))) {
-							switch_channel_t *tchannel = switch_core_session_get_channel(tmp);
-
-							if ((profile->media_options & MEDIA_OPT_BYPASS_AFTER_ATT_XFER)) {
-								switch_channel_set_flag(tchannel, CF_BYPASS_MEDIA_AFTER_BRIDGE);
-							}
-
-							switch_channel_set_variable(tchannel, "transfer_disposition", "bridge");
-
-							switch_channel_set_flag(tchannel, CF_ATTENDED_TRANSFER);
-							switch_core_session_rwunlock(tmp);
-						}
-
-						if ((profile->media_options & MEDIA_OPT_BYPASS_AFTER_ATT_XFER) && (tmp = switch_core_session_locate(br_a))) {
-							switch_channel_t *tchannel = switch_core_session_get_channel(tmp);
-							switch_channel_set_flag(tchannel, CF_BYPASS_MEDIA_AFTER_BRIDGE);
-							switch_core_session_rwunlock(tmp);
-						}
+							switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_NOTICE,
+											  "Attended Transfer on originating session %s\n", switch_core_session_get_uuid(b_session));
 
 
-						if (switch_true(switch_channel_get_variable(channel_a, "recording_follow_transfer")) &&
-							(tmp = switch_core_session_locate(br_a))) {
-							switch_channel_set_variable(switch_core_session_get_channel(tmp), "transfer_disposition", "bridge");
-							switch_core_media_bug_transfer_recordings(session, tmp);
-							switch_core_session_rwunlock(tmp);
-						}
+
+							switch_channel_set_variable_printf(channel_b, "transfer_to", "satt:%s", br_a);
+
+							switch_channel_set_variable(channel_b, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "ATTENDED_TRANSFER");
 
 
-						if (switch_true(switch_channel_get_variable(channel_b, "recording_follow_transfer")) &&
-							(tmp = switch_core_session_locate(br_b))) {
-							switch_core_media_bug_transfer_recordings(b_session, tmp);
-							switch_core_session_rwunlock(tmp);
-						}
+							sofia_clear_flag_locked(b_tech_pvt, TFLAG_SIP_HOLD);
+							switch_channel_clear_flag(channel_b, CF_LEG_HOLDING);
+							sofia_clear_flag_locked(tech_pvt, TFLAG_HOLD_LOCK);
 
-						switch_channel_set_variable_printf(channel_a, "transfer_to", "att:%s", br_b);
+							switch_channel_set_variable(channel_b, SWITCH_HOLDING_UUID_VARIABLE, br_a);
+							switch_channel_set_flag(channel_b, CF_XFER_ZOMBIE);
+							switch_channel_set_flag(channel_b, CF_TRANSFER);
 
-						mark_transfer_record(session, br_a, br_b);
 
-						if(sofia_test_pflag(profile, PFLAG_FIRE_TRANFER_EVENTS)) {
-							if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_REPLACED) == SWITCH_STATUS_SUCCESS) {
-								switch_channel_event_set_data(channel_b, event);
-								switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "att_xfer_replaced_by", br_a);
-								switch_event_fire(&event);
-							}
+							if ((a_session = switch_core_session_locate(br_a))) {
+								const char *moh = profile->hold_music;
+								switch_core_session_t *tmpsess = NULL;
+								switch_channel_t *a_channel = switch_core_session_get_channel(a_session);
+								switch_caller_profile_t *prof = switch_channel_get_caller_profile(channel_b);
+								const char *tmp;
 
-							if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEROR) == SWITCH_STATUS_SUCCESS) {
-								switch_channel_event_set_data(channel_a, event);
-								switch_event_fire(&event);
-							}
+								switch_core_event_hook_add_state_change(a_session, xfer_hanguphook);
+								switch_channel_set_variable(a_channel, "att_xfer_kill_uuid", switch_core_session_get_uuid(b_session));
+								switch_channel_set_variable(a_channel, "att_xfer_destination_number", prof->destination_number);
+								switch_channel_set_variable(a_channel, "att_xfer_callee_id_name", prof->callee_id_name);
+								switch_channel_set_variable(a_channel, "att_xfer_callee_id_number", prof->callee_id_number);
 
-							if ((tmp = switch_core_session_locate(br_a))) {
-								switch_channel_t *tchannel = switch_core_session_get_channel(tmp);
-
-								if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEREE) == SWITCH_STATUS_SUCCESS) {
-									switch_channel_event_set_data(tchannel, event);
-									switch_event_fire(&event);
-								}
-
-								switch_core_session_rwunlock(tmp);
-							}
-						}
-
-						switch_ivr_uuid_bridge(br_a, br_b);
-						switch_channel_set_variable(channel_b, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "ATTENDED_TRANSFER");
-						nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
-								   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"), SIPTAG_PAYLOAD_STR("SIP/2.0 200 OK\r\n"), SIPTAG_EVENT_STR(etmp),
-								   TAG_END());
-
-						sofia_clear_flag_locked(b_tech_pvt, TFLAG_SIP_HOLD);
-						switch_channel_clear_flag(channel_b, CF_LEG_HOLDING);
-						sofia_clear_flag_locked(tech_pvt, TFLAG_HOLD_LOCK);
-						switch_channel_set_variable(channel_b, "park_timeout", "2:attended_transfer");
-						switch_channel_set_state(channel_b, CS_PARK);
-						switch_channel_wait_for_state_timeout(channel_b, CS_PARK, 5000);
-
-					} else {
-						if (!br_a && !br_b) {
-							switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING,
-											  "Cannot transfer channels that are not in a bridge.\n");
-							nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
-									   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"), SIPTAG_PAYLOAD_STR("SIP/2.0 403 Forbidden\r\n"),
-									   SIPTAG_EVENT_STR(etmp), TAG_END());
-						} else {
-							switch_core_session_t *t_session, *hup_session;
-							switch_channel_t *hup_channel;
-							switch_event_t *event = NULL;
-							const char *ext;
-
-							if (br_a && !br_b) {
-								t_session = switch_core_session_locate(br_a);
-								hup_channel = channel_b;
-								hup_session = b_session;
-							} else {
-								private_object_t *h_tech_pvt = (private_object_t *) switch_core_session_get_private(b_session);
-								t_session = switch_core_session_locate(br_b);
-								hup_channel = channel_a;
-								hup_session = session;
-								sofia_clear_flag_locked(tech_pvt, TFLAG_SIP_HOLD);
-								switch_channel_clear_flag(tech_pvt->channel, CF_LEG_HOLDING);
-								sofia_clear_flag_locked(h_tech_pvt, TFLAG_SIP_HOLD);
-								switch_channel_clear_flag(h_tech_pvt->channel, CF_LEG_HOLDING);
-								switch_channel_hangup(channel_b, SWITCH_CAUSE_ATTENDED_TRANSFER);
-							}
-
-							if (t_session) {
-								switch_channel_t *t_channel = switch_core_session_get_channel(t_session);
-								const char *idest = switch_channel_get_variable(hup_channel, "inline_destination");
-								ext = switch_channel_get_variable(hup_channel, "destination_number");
-
-								if (!zstr(full_ref_by)) {
-									switch_channel_set_variable(t_channel, SOFIA_SIP_HEADER_PREFIX "Referred-By", full_ref_by);
-								}
-
-								if (!zstr(full_ref_to)) {
-									switch_channel_set_variable(t_channel, SOFIA_REFER_TO_VARIABLE, full_ref_to);
+								if (profile->media_options & MEDIA_OPT_BYPASS_AFTER_ATT_XFER) {
+									switch_channel_set_flag(a_channel, CF_BYPASS_MEDIA_AFTER_BRIDGE);
 								}
 
 
-								if (switch_true(switch_channel_get_variable(hup_channel, "recording_follow_transfer"))) {
-									switch_core_media_bug_transfer_recordings(hup_session, t_session);
+								if ((tmp = switch_channel_get_hold_music(a_channel))) {
+									moh = tmp;
+								}
+
+								if (!zstr(moh) && !strcasecmp(moh, "silence")) {
+									moh = NULL;
 								}
 
 								if(sofia_test_pflag(profile, PFLAG_FIRE_TRANFER_EVENTS)) {
+									if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_REPLACED) == SWITCH_STATUS_SUCCESS) {
+									    switch_channel_event_set_data(channel_b, event);
+										switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "att_xfer_replaced_by", br_a);
+										switch_event_fire(&event);
+									}
+
 									if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEROR) == SWITCH_STATUS_SUCCESS) {
 										switch_channel_event_set_data(channel_a, event);
 										switch_event_fire(&event);
 									}
 
 									if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEREE) == SWITCH_STATUS_SUCCESS) {
-										switch_channel_event_set_data(t_channel, event);
+									    switch_channel_event_set_data(a_channel, event);
 										switch_event_fire(&event);
 									}
 								}
 
-								if (idest) {
-									switch_ivr_session_transfer(t_session, idest, "inline", NULL);
+								if (moh) {
+									char *xdest;
+									xdest = switch_core_session_sprintf(a_session, "m:\":endless_playback:%s\"park", moh);
+									switch_ivr_session_transfer(a_session, xdest, "inline", NULL);
 								} else {
-									switch_ivr_session_transfer(t_session, ext, NULL, NULL);
+									switch_ivr_session_transfer(a_session, "park", "inline", NULL);
+								}
+								if (switch_true(switch_channel_get_variable(channel_a, "recording_follow_transfer"))) {
+									switch_core_media_bug_transfer_recordings(session, a_session);
+								}
+								if (switch_true(switch_channel_get_variable(channel_b, "recording_follow_transfer")) && (tmpsess = switch_core_session_locate(br_a))) {
+									switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_NOTICE,
+											  "Early transfer detected with no media, moving recording bug to other leg\n");
+									switch_core_media_bug_transfer_recordings(b_session, tmpsess);
+									switch_core_session_rwunlock(tmpsess);
 								}
 
-								nua_notify(tech_pvt->nh,
-										   NUTAG_NEWSUB(1),
-										   SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
-										   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"),
-										   SIPTAG_PAYLOAD_STR("SIP/2.0 200 OK\r\n"), SIPTAG_EVENT_STR(etmp), TAG_END());
-								switch_core_session_rwunlock(t_session);
-								switch_channel_hangup(hup_channel, SWITCH_CAUSE_ATTENDED_TRANSFER);
+								switch_core_session_rwunlock(a_session);
+
+								nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
+										   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"), SIPTAG_PAYLOAD_STR("SIP/2.0 200 OK\r\n"), SIPTAG_EVENT_STR(etmp),
+										   TAG_END());
+
+								if (b_tech_pvt && !sofia_test_flag(b_tech_pvt, TFLAG_BYE)) {
+									char *q850 = NULL;
+									const char *val = NULL;
+
+									sofia_set_flag_locked(b_tech_pvt, TFLAG_BYE);
+									val = switch_channel_get_variable(tech_pvt->channel, "disable_q850_reason");
+									if (!val || switch_true(val)) {
+										q850 = switch_core_session_sprintf(a_session, "Q.850;cause=16;text=\"normal_clearing\"");
+									}
+									nua_bye(b_tech_pvt->nh,
+											SIPTAG_CONTACT(SIP_NONE),
+											TAG_IF(!zstr(q850), SIPTAG_REASON_STR(q850)),
+											TAG_IF(!zstr(tech_pvt->user_via), SIPTAG_VIA_STR(tech_pvt->user_via)), TAG_END());
+
+								}
 							} else {
-								switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Session to transfer to not found.\n");
 								nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
 										   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"),
 										   SIPTAG_PAYLOAD_STR("SIP/2.0 403 Forbidden\r\n"), SIPTAG_EVENT_STR(etmp), TAG_END());
 							}
-						}
-					}
-					if (b_session) {
-						switch_core_session_rwunlock(b_session);
-					}
-				}
-				nua_handle_unref(bnh);
-			} else {		/* the other channel is on a different box, we have to go find them */
-				if (exten && (br_a = switch_channel_get_partner_uuid(channel_a))) {
-					switch_core_session_t *a_session;
-					switch_channel_t *channel = switch_core_session_get_channel(session);
 
-					if ((a_session = switch_core_session_locate(br_a))) {
-						const char *port = NULL;
-						const char *rep_h = NULL;
+						} else if (br_a && br_b) {
+							switch_core_session_t *tmp = NULL;
+							switch_event_t *event = NULL;
 
-						switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG,
-										  "REFER from %s replaces %s (%s@%s) with %s on another server\n",
-										  switch_core_session_get_uuid(session), rep, exten, (char *) refer_to->r_url->url_host, br_a);
+							switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_NOTICE, "Attended Transfer [%s][%s]\n",
+											  switch_str_nil(br_a), switch_str_nil(br_b));
 
-						if (refer_to && refer_to->r_url->url_port) {
-							port = refer_to->r_url->url_port;
-						}
+							if ((tmp = switch_core_session_locate(br_b))) {
+								switch_channel_t *tchannel = switch_core_session_get_channel(tmp);
 
-						channel = switch_core_session_get_channel(a_session);
+								if ((profile->media_options & MEDIA_OPT_BYPASS_AFTER_ATT_XFER)) {
+									switch_channel_set_flag(tchannel, CF_BYPASS_MEDIA_AFTER_BRIDGE);
+								}
 
-						exten = NULL;
+								switch_channel_set_variable(tchannel, "transfer_disposition", "bridge");
 
-						if (sofia_test_pflag(profile, PFLAG_CHANNEL_XML_FETCH_ON_NIGHTMARE_TRANSFER)) {
-							switch_xml_t xml_root = NULL, xml_channel = NULL;
-							switch_event_t *xml_params = NULL;
-							const char *xml_url = NULL, *use_profile = profile->name, *dial_prefix = NULL, *absolute_dial_string = NULL;
-							switch_xml_t params = NULL, param = NULL;
+								switch_channel_set_flag(tchannel, CF_ATTENDED_TRANSFER);
+								switch_core_session_rwunlock(tmp);
+							}
 
-							switch_event_create(&xml_params, SWITCH_EVENT_REQUEST_PARAMS);
-							switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "purpose", "nightmare_xfer");
-							switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "profile", profile->name);
-							switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "refer-to-user", refer_to->r_url->url_user);
-							switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "refer-to-host", refer_to->r_url->url_host);
-							switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "refer-to-params", refer_to->r_url->url_params ? refer_to->r_url->url_params : "");
-							switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "refer-to-headers", refer_to->r_url->url_headers ? refer_to->r_url->url_headers : "");
-							switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "replaces-call-id", replaces->rp_call_id);
-							switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "refer-from-channel-id", switch_core_session_get_uuid(session));
-							switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "refer-for-channel-id", br_a);
+							if ((profile->media_options & MEDIA_OPT_BYPASS_AFTER_ATT_XFER) && (tmp = switch_core_session_locate(br_a))) {
+								switch_channel_t *tchannel = switch_core_session_get_channel(tmp);
+								switch_channel_set_flag(tchannel, CF_BYPASS_MEDIA_AFTER_BRIDGE);
+								switch_core_session_rwunlock(tmp);
+							}
 
-							if (switch_xml_locate("channels", NULL, NULL, NULL,
-												  &xml_root, &xml_channel, xml_params, SWITCH_FALSE) == SWITCH_STATUS_SUCCESS) {
-								if ((params = switch_xml_child(xml_channel, "params"))) {
-									for (param = switch_xml_child(params, "param"); param; param = param->next) {
-										const char *name = switch_xml_attr(param, "name");
-										const char *value = switch_xml_attr(param, "value");
 
-										if (!(name && value)) continue;
+							if (switch_true(switch_channel_get_variable(channel_a, "recording_follow_transfer")) &&
+								(tmp = switch_core_session_locate(br_a))) {
+								switch_channel_set_variable(switch_core_session_get_channel(tmp), "transfer_disposition", "bridge");
+								switch_core_media_bug_transfer_recordings(session, tmp);
+								switch_core_session_rwunlock(tmp);
+							}
 
-										if (!strcasecmp(name, "sip-url")) {
-											xml_url = value;
-										} else if (!strcasecmp(name, "dial-prefix")) {
-											dial_prefix = value;
-										} else if (!strcasecmp(name, "absolute-dial-string")) {
-											absolute_dial_string = value;
-										} else if (!strcasecmp(name, "sip-profile")) {
-											use_profile = value;
+
+							if (switch_true(switch_channel_get_variable(channel_b, "recording_follow_transfer")) &&
+								(tmp = switch_core_session_locate(br_b))) {
+								switch_core_media_bug_transfer_recordings(b_session, tmp);
+								switch_core_session_rwunlock(tmp);
+							}
+
+							switch_channel_set_variable_printf(channel_a, "transfer_to", "att:%s", br_b);
+
+							mark_transfer_record(session, br_a, br_b);
+
+							if(sofia_test_pflag(profile, PFLAG_FIRE_TRANFER_EVENTS)) {
+	                            if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_REPLACED) == SWITCH_STATUS_SUCCESS) {
+	                                switch_channel_event_set_data(channel_b, event);
+	                                switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "att_xfer_replaced_by", br_a);
+	                                switch_event_fire(&event);
+	                            }
+
+	                            if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEROR) == SWITCH_STATUS_SUCCESS) {
+	                                switch_channel_event_set_data(channel_a, event);
+	                                switch_event_fire(&event);
+	                            }
+
+	                            if ((tmp = switch_core_session_locate(br_a))) {
+	                                switch_channel_t *tchannel = switch_core_session_get_channel(tmp);
+
+	                                if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEREE) == SWITCH_STATUS_SUCCESS) {
+	                                    switch_channel_event_set_data(tchannel, event);
+	                                    switch_event_fire(&event);
+	                                }
+
+	                                switch_core_session_rwunlock(tmp);
+	                            }
+							}
+
+							switch_ivr_uuid_bridge(br_a, br_b);
+							switch_channel_set_variable(channel_b, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "ATTENDED_TRANSFER");
+							nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
+									   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"), SIPTAG_PAYLOAD_STR("SIP/2.0 200 OK\r\n"), SIPTAG_EVENT_STR(etmp),
+									   TAG_END());
+
+							sofia_clear_flag_locked(b_tech_pvt, TFLAG_SIP_HOLD);
+							switch_channel_clear_flag(channel_b, CF_LEG_HOLDING);
+							sofia_clear_flag_locked(tech_pvt, TFLAG_HOLD_LOCK);
+							switch_channel_set_variable(channel_b, "park_timeout", "2:attended_transfer");
+							switch_channel_set_state(channel_b, CS_PARK);
+							switch_channel_wait_for_state_timeout(channel_b, CS_PARK, 5000);
+
+						} else {
+							if (!br_a && !br_b) {
+								switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING,
+												  "Cannot transfer channels that are not in a bridge.\n");
+								nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
+										   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"), SIPTAG_PAYLOAD_STR("SIP/2.0 403 Forbidden\r\n"),
+										   SIPTAG_EVENT_STR(etmp), TAG_END());
+							} else {
+								switch_core_session_t *t_session, *hup_session;
+								switch_channel_t *hup_channel;
+								switch_event_t *event = NULL;
+								const char *ext;
+
+								if (br_a && !br_b) {
+									t_session = switch_core_session_locate(br_a);
+									hup_channel = channel_b;
+									hup_session = b_session;
+								} else {
+									private_object_t *h_tech_pvt = (private_object_t *) switch_core_session_get_private(b_session);
+									t_session = switch_core_session_locate(br_b);
+									hup_channel = channel_a;
+									hup_session = session;
+									sofia_clear_flag_locked(tech_pvt, TFLAG_SIP_HOLD);
+									switch_channel_clear_flag(tech_pvt->channel, CF_LEG_HOLDING);
+									sofia_clear_flag_locked(h_tech_pvt, TFLAG_SIP_HOLD);
+									switch_channel_clear_flag(h_tech_pvt->channel, CF_LEG_HOLDING);
+									switch_channel_hangup(channel_b, SWITCH_CAUSE_ATTENDED_TRANSFER);
+								}
+
+								if (t_session) {
+									switch_channel_t *t_channel = switch_core_session_get_channel(t_session);
+									const char *idest = switch_channel_get_variable(hup_channel, "inline_destination");
+									ext = switch_channel_get_variable(hup_channel, "destination_number");
+
+									if (!zstr(full_ref_by)) {
+										switch_channel_set_variable(t_channel, SOFIA_SIP_HEADER_PREFIX "Referred-By", full_ref_by);
+									}
+
+									if (!zstr(full_ref_to)) {
+										switch_channel_set_variable(t_channel, SOFIA_REFER_TO_VARIABLE, full_ref_to);
+									}
+
+
+									if (switch_true(switch_channel_get_variable(hup_channel, "recording_follow_transfer"))) {
+										switch_core_media_bug_transfer_recordings(hup_session, t_session);
+									}
+
+									if(sofia_test_pflag(profile, PFLAG_FIRE_TRANFER_EVENTS)) {
+										if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEROR) == SWITCH_STATUS_SUCCESS) {
+											switch_channel_event_set_data(channel_a, event);
+											switch_event_fire(&event);
+										}
+
+										if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEREE) == SWITCH_STATUS_SUCCESS) {
+										    switch_channel_event_set_data(t_channel, event);
+											switch_event_fire(&event);
 										}
 									}
-								}
 
-								if (absolute_dial_string) {
-									exten = switch_core_session_sprintf(session, "%s%s", dial_prefix, absolute_dial_string);
-								} else if (xml_url) {
-									exten = switch_core_session_sprintf(session, "%ssofia/%s/%s", dial_prefix, use_profile, xml_url);
-								}
-
-								switch_xml_free(xml_root);
-							}
-
-							switch_event_destroy(&xml_params);
-						}
-
-
-						if (zstr(exten)) {
-							exten = switch_core_session_sprintf(session, "sofia/%s/sip:%s@%s%s%s",
-																profile->name, refer_to->r_url->url_user,
-																refer_to->r_url->url_host, port ? ":" : "", port ? port : "");
-						}
-
-						switch_core_new_memory_pool(&npool);
-						nightmare_xfer_helper = switch_core_alloc(npool, sizeof(*nightmare_xfer_helper));
-						nightmare_xfer_helper->exten = switch_core_strdup(npool, exten);
-
-						if (refer_to->r_url->url_params || refer_to->r_url->url_headers) {
-							if (refer_to->r_url->url_headers) {
-								nightmare_xfer_helper->exten_with_params = switch_core_sprintf(npool,
-																							   "{sip_invite_params=%s?%s}%s",
-																							   refer_to->r_url->url_params ? refer_to->r_url->
-																							   url_params : "", refer_to->r_url->url_headers, exten);
-							} else {
-								nightmare_xfer_helper->exten_with_params = switch_core_sprintf(npool,
-																							   "{sip_invite_params=%s}%s", refer_to->r_url->url_params,
-																							   exten);
-							}
-						} else {
-							nightmare_xfer_helper->exten_with_params = nightmare_xfer_helper->exten;
-						}
-
-						switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Nightmare transfer to '%s'\n", nightmare_xfer_helper->exten_with_params);
-
-						nightmare_xfer_helper->event = switch_core_strdup(npool, etmp);
-						nightmare_xfer_helper->reply_uuid = switch_core_strdup(npool, switch_core_session_get_uuid(session));
-						nightmare_xfer_helper->bridge_to_uuid = switch_core_strdup(npool, br_a);
-						nightmare_xfer_helper->pool = npool;
-
-						if (refer_to->r_url->url_headers) {
-							char *h, *v, *hp;
-							p = switch_core_session_strdup(session, refer_to->r_url->url_headers);
-							while (p && *p) {
-								h = p;
-								if ((p = strchr(p, '='))) {
-									*p++ = '\0';
-									v = p;
-									if ((p = strchr(p, '&'))) {
-										*p++ = '\0';
-									}
-
-									url_unescape(h, (const char *) h);
-									url_unescape(v, (const char *) v);
-									if (strcasecmp("Replaces", h)) {
-										hp = switch_core_session_sprintf(session, "%s%s", SOFIA_SIP_HEADER_PREFIX, h);
-										switch_channel_set_variable(channel, hp, v);
+									if (idest) {
+										switch_ivr_session_transfer(t_session, idest, "inline", NULL);
 									} else {
-										// use this one instead of rep value from above to keep all parameters
-										switch_channel_set_variable(channel, SOFIA_REPLACES_HEADER, v);
+										switch_ivr_session_transfer(t_session, ext, NULL, NULL);
 									}
-									switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Exporting replaces URL header [%s:%s]\n",
-													  h, v);
+
+									nua_notify(tech_pvt->nh,
+											   NUTAG_NEWSUB(1),
+											   SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
+											   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"),
+											   SIPTAG_PAYLOAD_STR("SIP/2.0 200 OK\r\n"), SIPTAG_EVENT_STR(etmp), TAG_END());
+									switch_core_session_rwunlock(t_session);
+									switch_channel_hangup(hup_channel, SWITCH_CAUSE_ATTENDED_TRANSFER);
+								} else {
+									switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Session to transfer to not found.\n");
+									nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
+											   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"),
+											   SIPTAG_PAYLOAD_STR("SIP/2.0 403 Forbidden\r\n"), SIPTAG_EVENT_STR(etmp), TAG_END());
 								}
 							}
 						}
+						if (b_session) {
+							switch_core_session_rwunlock(b_session);
+						}
+					}
+					nua_handle_unref(bnh);
+				} else {		/* the other channel is on a different box, we have to go find them */
+					if (exten && (br_a = switch_channel_get_partner_uuid(channel_a))) {
+						switch_core_session_t *a_session;
+						switch_channel_t *channel = switch_core_session_get_channel(session);
+
+						if ((a_session = switch_core_session_locate(br_a))) {
+							const char *port = NULL;
+							const char *rep_h = NULL;
+							
+
+							switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG,
+											  "REFER from %s replaces %s (%s@%s) with %s on another server\n",
+											  switch_core_session_get_uuid(session), rep, exten, (char *) refer_to->r_url->url_host, br_a);
+
+							
+							if (refer_to && refer_to->r_url->url_port) {
+								port = refer_to->r_url->url_port;
+							}
+
+							channel = switch_core_session_get_channel(a_session);
+
+							exten = NULL;
+							
+							if (sofia_test_pflag(profile, PFLAG_CHANNEL_XML_FETCH_ON_NIGHTMARE_TRANSFER)) {
+								switch_xml_t xml_root = NULL, xml_channel = NULL;
+								switch_event_t *xml_params = NULL;
+								const char *xml_url = NULL, *use_profile = profile->name, *dial_prefix = NULL, *absolute_dial_string = NULL;
+								switch_xml_t params = NULL, param = NULL;
+
+								switch_event_create(&xml_params, SWITCH_EVENT_REQUEST_PARAMS);
+								switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "purpose", "nightmare_xfer");
+								switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "profile", profile->name);
+								switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "refer-to-user", refer_to->r_url->url_user);
+								switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "refer-to-host", refer_to->r_url->url_host);
+								switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "refer-to-params", refer_to->r_url->url_params ? refer_to->r_url->url_params : "");
+								switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "refer-to-headers", refer_to->r_url->url_headers ? refer_to->r_url->url_headers : "");
+								switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "replaces-call-id", replaces->rp_call_id);
+								switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "refer-from-channel-id", switch_core_session_get_uuid(session));
+								switch_event_add_header_string(xml_params, SWITCH_STACK_BOTTOM, "refer-for-channel-id", br_a);
+								 
+
+								if (switch_xml_locate("channels", NULL, NULL, NULL,
+													  &xml_root, &xml_channel, xml_params, SWITCH_FALSE) == SWITCH_STATUS_SUCCESS) {
+									if ((params = switch_xml_child(xml_channel, "params"))) {
+										for (param = switch_xml_child(params, "param"); param; param = param->next) {
+											const char *name = switch_xml_attr(param, "name");
+											const char *value = switch_xml_attr(param, "value");
+
+											if (!(name && value)) continue;
+
+											if (!strcasecmp(name, "sip-url")) {
+												xml_url = value;
+											} else if (!strcasecmp(name, "dial-prefix")) {
+												dial_prefix = value;
+											} else if (!strcasecmp(name, "absolute-dial-string")) {
+												absolute_dial_string = value;
+											} else if (!strcasecmp(name, "sip-profile")) {
+												use_profile = value;
+											}
+										}
+									}
+
+									if (absolute_dial_string) {
+										exten = switch_core_session_sprintf(session, "%s%s", dial_prefix, absolute_dial_string);
+									} else if (xml_url) {
+										exten = switch_core_session_sprintf(session, "%ssofia/%s/%s", dial_prefix, use_profile, xml_url);
+									}
+									
+									switch_xml_free(xml_root);
+								}
+
+								switch_event_destroy(&xml_params);
+							}
+							
 
 
-						switch_event_create(&nightmare_xfer_helper->vars, SWITCH_EVENT_CHANNEL_DATA);
+							if (zstr(exten)) {
+								exten = switch_core_session_sprintf(session, "sofia/%s/sip:%s@%s%s%s",
+																	profile->name, refer_to->r_url->url_user,
+																	refer_to->r_url->url_host, port ? ":" : "", port ? port : "");
+							}
+							
+							switch_core_new_memory_pool(&npool);
+							nightmare_xfer_helper = switch_core_alloc(npool, sizeof(*nightmare_xfer_helper));
+							nightmare_xfer_helper->exten = switch_core_strdup(npool, exten);
 
-						rep_h = switch_channel_get_variable(channel, SOFIA_REPLACES_HEADER);
-						if (rep_h) {
-							switch_event_add_header_string(nightmare_xfer_helper->vars, SWITCH_STACK_BOTTOM, SOFIA_REPLACES_HEADER, rep_h);
+							if (refer_to->r_url->url_params || refer_to->r_url->url_headers) {
+								if (refer_to->r_url->url_headers) {
+									nightmare_xfer_helper->exten_with_params = switch_core_sprintf(npool,
+																								   "{sip_invite_params=%s?%s}%s",
+																								   refer_to->r_url->url_params ? refer_to->r_url->
+																								   url_params : "", refer_to->r_url->url_headers, exten);
+								} else {
+									nightmare_xfer_helper->exten_with_params = switch_core_sprintf(npool,
+																								   "{sip_invite_params=%s}%s", refer_to->r_url->url_params,
+																								   exten);
+								}
+							} else {
+								nightmare_xfer_helper->exten_with_params = nightmare_xfer_helper->exten;
+							}
+
+							switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Nightmare transfer to '%s'\n", nightmare_xfer_helper->exten_with_params);
+
+							nightmare_xfer_helper->event = switch_core_strdup(npool, etmp);
+							nightmare_xfer_helper->reply_uuid = switch_core_strdup(npool, switch_core_session_get_uuid(session));
+							nightmare_xfer_helper->bridge_to_uuid = switch_core_strdup(npool, br_a);
+							nightmare_xfer_helper->pool = npool;
+
+							if (refer_to->r_url->url_headers) {
+								char *h, *v, *hp;
+								p = switch_core_session_strdup(session, refer_to->r_url->url_headers);
+								while (p && *p) {
+									h = p;
+									if ((p = strchr(p, '='))) {
+										*p++ = '\0';
+										v = p;
+										if ((p = strchr(p, '&'))) {
+											*p++ = '\0';
+										}
+
+										url_unescape(h, (const char *) h);
+										url_unescape(v, (const char *) v);
+										if (strcasecmp("Replaces", h)) {
+											hp = switch_core_session_sprintf(session, "%s%s", SOFIA_SIP_HEADER_PREFIX, h);
+											switch_channel_set_variable(channel, hp, v);
+										} else {
+											// use this one instead of rep value from above to keep all parameters
+											switch_channel_set_variable(channel, SOFIA_REPLACES_HEADER, v);
+										}
+										switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Exporting replaces URL header [%s:%s]\n",
+														  h, v);
+									}
+								}
+							}
+
+
+							switch_event_create(&nightmare_xfer_helper->vars, SWITCH_EVENT_CHANNEL_DATA);
+
+							rep_h = switch_channel_get_variable(channel, SOFIA_REPLACES_HEADER);
+							if (rep_h) {
+								switch_event_add_header_string(nightmare_xfer_helper->vars, SWITCH_STACK_BOTTOM, SOFIA_REPLACES_HEADER, rep_h);
+							} else {
+								switch_event_add_header_string(nightmare_xfer_helper->vars, SWITCH_STACK_BOTTOM, SOFIA_REPLACES_HEADER, rep);
+							}
+
+
+							if (!zstr(full_ref_by)) {
+								switch_event_add_header_string(nightmare_xfer_helper->vars, SWITCH_STACK_BOTTOM, "Referred-By", full_ref_by);
+							}
+
+							if (!zstr(full_ref_to)) {
+								switch_event_add_header_string(nightmare_xfer_helper->vars, SWITCH_STACK_BOTTOM, SOFIA_REFER_TO_VARIABLE, full_ref_to);
+							}
+
+							if(sofia_test_pflag(profile, PFLAG_FIRE_TRANFER_EVENTS)) {
+								if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEROR) == SWITCH_STATUS_SUCCESS) {
+									switch_channel_event_set_data(channel_a, event);
+									switch_event_fire(&event);
+								}
+
+								if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEREE) == SWITCH_STATUS_SUCCESS) {
+									switch_channel_event_set_data(channel, event);
+									switch_event_fire(&event);
+								}
+							}
+
+							switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Good Luck, you'll need it......\n");
+							launch_nightmare_xfer(nightmare_xfer_helper);
+
+							switch_core_session_rwunlock(a_session);
+
 						} else {
-							switch_event_add_header_string(nightmare_xfer_helper->vars, SWITCH_STACK_BOTTOM, SOFIA_REPLACES_HEADER, rep);
+							goto error;
 						}
-
-
-						if (!zstr(full_ref_by)) {
-							switch_event_add_header_string(nightmare_xfer_helper->vars, SWITCH_STACK_BOTTOM, "Referred-By", full_ref_by);
-						}
-
-						if (!zstr(full_ref_to)) {
-							switch_event_add_header_string(nightmare_xfer_helper->vars, SWITCH_STACK_BOTTOM, SOFIA_REFER_TO_VARIABLE, full_ref_to);
-						}
-
-						if(sofia_test_pflag(profile, PFLAG_FIRE_TRANFER_EVENTS)) {
-							if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEROR) == SWITCH_STATUS_SUCCESS) {
-								switch_channel_event_set_data(channel_a, event);
-								switch_event_fire(&event);
-							}
-
-							if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, MY_EVENT_TRANSFEREE) == SWITCH_STATUS_SUCCESS) {
-								switch_channel_event_set_data(channel, event);
-								switch_event_fire(&event);
-							}
-						}
-
-						switch_event_add_header_string(nightmare_xfer_helper->vars, SWITCH_STACK_BOTTOM, "sip_h_X-FS-Refer-From", switch_core_session_get_uuid(session));
-						switch_event_add_header_string(nightmare_xfer_helper->vars, SWITCH_STACK_BOTTOM, "sip_h_X-FS-Refer-For", br_a);
-
-						switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Good Luck, you'll need it......\n");
-						launch_nightmare_xfer(nightmare_xfer_helper);
-
-						switch_core_session_rwunlock(a_session);
 
 					} else {
-						goto error;
+					  error:
+						switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Invalid Transfer! [%s]\n", br_a);
+						switch_channel_set_variable(channel_a, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "ATTENDED_TRANSFER_ERROR");
+						nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
+								   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"), SIPTAG_PAYLOAD_STR("SIP/2.0 403 Forbidden\r\n"), SIPTAG_EVENT_STR(etmp),
+								   TAG_END());
 					}
-
-				} else {
-				  error:
-					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Invalid Transfer! [%s]\n", br_a);
-					switch_channel_set_variable(channel_a, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "ATTENDED_TRANSFER_ERROR");
-					nua_notify(tech_pvt->nh, NUTAG_NEWSUB(1), SIPTAG_CONTENT_TYPE_STR("message/sipfrag;version=2.0"),
-							   NUTAG_SUBSTATE(nua_substate_terminated),SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"), SIPTAG_PAYLOAD_STR("SIP/2.0 403 Forbidden\r\n"), SIPTAG_EVENT_STR(etmp),
-							   TAG_END());
 				}
+			} else {
+				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Cannot parse Replaces!\n");
 			}
 			goto done;
 		}
@@ -9371,7 +9166,7 @@ void sofia_handle_sip_i_refer(nua_t *nua, sofia_profile_t *profile, nua_handle_t
 						   SIPTAG_SUBSCRIPTION_STATE_STR("terminated;reason=noresource"),
 						   SIPTAG_PAYLOAD_STR("SIP/2.0 200 OK\r\n"), SIPTAG_EVENT_STR(etmp), TAG_END());
 			}
-
+            
             if (refer_to->r_url->url_params) {
                 switch_channel_set_variable(b_channel, "sip_h_X-FS-Refer-Params", refer_to->r_url->url_params);
             }
@@ -9502,11 +9297,11 @@ switch_status_t sofia_proxy_sip_i_message(nua_t *nua, sofia_profile_t *profile, 
 			}
 
 			other_tech_pvt = (private_object_t *) switch_core_session_get_private(other_session);
-
+			
 			if (sip->sip_content_type->c_type && sip->sip_content_type->c_subtype) {
 				ct = sip->sip_content_type->c_type;
 			}
-
+			
 			nua_message(other_tech_pvt->nh,
 					 TAG_IF(ct, SIPTAG_CONTENT_TYPE_STR(su_strdup(other_tech_pvt->nh->nh_home, ct))),
 					 TAG_IF(!zstr(other_tech_pvt->user_via), SIPTAG_VIA_STR(other_tech_pvt->user_via)),
@@ -9535,13 +9330,13 @@ switch_status_t sofia_proxy_sip_i_info(nua_t *nua, sofia_profile_t *profile, nua
 			const char *ct = NULL;
 			char *pl = NULL;
 			switch_channel_t *channel = switch_core_session_get_channel(session);
-
+			
 			if (sip && sip->sip_payload && sip->sip_payload->pl_data) {
 				pl = sip->sip_payload->pl_data;
 			}
 
 			other_tech_pvt = (private_object_t *) switch_core_session_get_private(other_session);
-
+			
 			if (sip->sip_content_type->c_type && sip->sip_content_type->c_subtype) {
 				ct = sip->sip_content_type->c_type;
 			}
@@ -9911,8 +9706,6 @@ void sofia_handle_sip_i_reinvite(switch_core_session_t *session,
 	switch_channel_t *channel = NULL;
 	private_object_t *tech_pvt = NULL;
 
-	nua_respond(nh, SIP_100_TRYING, TAG_END());
-
 	if (session) {
 		channel = switch_core_session_get_channel(session);
 		tech_pvt = switch_core_session_get_private(session);
@@ -10038,7 +9831,7 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 		uparams = NULL;
 	}
 
-
+	
 	if (uparams) {
 		if (switch_stristr("transport=tcp", uparams)) {
 			is_tcp = 1;
@@ -10091,11 +9884,11 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 	}
 
 
-	if (sofia_test_pflag(profile, PFLAG_AGGRESSIVE_NAT_DETECTION) ||
-		(sofia_test_pflag(profile, PFLAG_TLS_ALWAYS_NAT) && (is_tcp || is_tls)) ||
-		(!is_tcp && !is_tls && (zstr(network_ip) || !switch_check_network_list_ip(network_ip, profile->local_network)) &&
-		 profile->server_rport_level >= 2 && sip->sip_user_agent &&
-		 sip->sip_user_agent->g_string &&
+	if (sofia_test_pflag(profile, PFLAG_AGGRESSIVE_NAT_DETECTION) || 
+		(sofia_test_pflag(profile, PFLAG_TLS_ALWAYS_NAT) && (is_tcp || is_tls)) || 
+		(!is_tcp && !is_tls && (zstr(network_ip) || !switch_check_network_list_ip(network_ip, profile->local_network)) && 
+		 profile->server_rport_level >= 2 && sip->sip_user_agent && 
+		 sip->sip_user_agent->g_string && 
 		 (!strncasecmp(sip->sip_user_agent->g_string, "Polycom", 7) || !strncasecmp(sip->sip_user_agent->g_string, "KIRK Wireless Server", 20)))
 		) {
 		if (sip && sip->sip_via) {
@@ -10291,7 +10084,6 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 	}
 
 
-	tech_pvt->from_user = switch_core_session_strdup(session, sip->sip_from->a_url->url_user);
 	tech_pvt->mparams.remote_ip = switch_core_session_strdup(session, network_ip);
 	tech_pvt->mparams.remote_port = network_port;
 
@@ -10444,7 +10236,6 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 		}
 
 		switch_channel_set_variable(channel, "sofia_profile_name", profile->name);
-		switch_channel_set_variable(channel, "sofia_profile_url", profile->url);
 		switch_channel_set_variable(channel, "recovery_profile_name", profile->name);
 		switch_channel_set_variable(channel, "sofia_profile_domain_name", profile->domain_name);
 
@@ -10547,7 +10338,7 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 								char *var_name = NULL;
 								var_name = switch_mprintf("sip_invite_%s", argv1[x1]);
 								switch_channel_set_variable(channel, var_name, "true");
-								switch_safe_free( var_name );
+								switch_safe_free( var_name );									
 							}
 						}
 					}
@@ -10678,7 +10469,7 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 
 	if (sofia_glue_check_nat(profile, tech_pvt->mparams.remote_ip)) {
 		tech_pvt->user_via = sofia_glue_create_external_via(session, profile, tech_pvt->transport);
-		nua_set_hparams(nh, SIPTAG_VIA_STR(tech_pvt->user_via), TAG_END());
+		nua_set_hparams(tech_pvt->nh, SIPTAG_VIA_STR(tech_pvt->user_via), TAG_END());
 	}
 
 	if (sip->sip_contact) {
@@ -10735,8 +10526,6 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 	if (sip->sip_user_agent && !zstr(sip->sip_user_agent->g_string)) {
 		switch_channel_set_variable(channel, "sip_user_agent", sip->sip_user_agent->g_string);
 	}
-
-	sofia_set_accept_language_channel_variable(channel, sip);
 
 	if (sip->sip_via) {
 		if (sip->sip_via->v_host) {
@@ -11106,7 +10895,7 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 						if (bcp->originatee_caller_profile) {
 							switch_caller_profile_t *cp;
 
-							cp = switch_caller_profile_dup(tech_pvt->caller_profile->pool,
+							cp = switch_caller_profile_dup(tech_pvt->caller_profile->pool, 
 														   bcp->originatee_caller_profile);
 
 							switch_channel_set_originatee_caller_profile(tech_pvt->channel, cp);
@@ -11116,14 +10905,12 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 																						   "answer,sofia_sla:%s", b_private->uuid);
 					}
 				} else {
-					char const *a_leg = NULL;
-					char const *nightmare_xfer_uuid = NULL;
-
+					char *a_leg = NULL;
 				    switch_event_t *event = NULL;
 					if (sip->sip_replaces && sip->sip_replaces->rp_params && sip->sip_replaces->rp_call_id) {
-						a_leg = msg_header_find_param(sip->sip_replaces->rp_common, "a-leg");
+						a_leg = switch_find_parameter(*(sip->sip_replaces->rp_params), "a-leg", switch_core_session_get_pool(session));
 					}
-					if(a_leg && switch_true(a_leg)) {
+					if(a_leg) {
 						switch_channel_mark_hold(b_channel, SWITCH_FALSE);
 						tech_pvt->caller_profile->destination_number = switch_core_sprintf(tech_pvt->caller_profile->pool, "answer,intercept:%s", sip->sip_replaces->rp_call_id);
 						switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "call %s picked up on a-leg\n", sip->sip_replaces->rp_call_id);
@@ -11134,13 +10921,6 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 							switch_event_fire(&event);
 						}
 					} else {
-						if ((nightmare_xfer_uuid = sofia_glue_get_unknown_header(sip, "X-FS-Refer-For"))) {
-							switch_channel_set_variable(b_channel, "transfer_refer_for", nightmare_xfer_uuid);
-						}
-						if ((nightmare_xfer_uuid = sofia_glue_get_unknown_header(sip, "X-FS-Refer-From"))) {
-							switch_channel_set_variable(b_channel, "transfer_refer_from", nightmare_xfer_uuid);
-						}
-
 						if (!zstr(bridge_uuid)) {
 							if (sip->sip_replaces && sip->sip_replaces->rp_params && sip->sip_replaces->rp_call_id && switch_channel_test_flag(b_channel, CF_BRIDGED) &&
 								switch_true(switch_find_parameter(*(sip->sip_replaces->rp_params), "early-only", switch_core_session_get_pool(session)))) {
@@ -11170,7 +10950,7 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 								switch_channel_event_set_data(b_channel, event);
 								switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "att_xfer_replaced_by", sip->sip_call_id->i_id);
 								switch_event_fire(&event);
-							}
+							}							
 							switch_channel_hangup(b_channel, SWITCH_CAUSE_ATTENDED_TRANSFER);
 						}
 					}

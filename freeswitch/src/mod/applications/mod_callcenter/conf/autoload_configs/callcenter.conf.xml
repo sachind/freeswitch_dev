@@ -3,7 +3,6 @@
     <!--<param name="odbc-dsn" value="dsn:user:pass"/>-->
     <!--<param name="dbname" value="/dev/shm/callcenter.db"/>-->
     <!--<param name="reserve-agents" value="true"/>-->
-    <!--<param name="cc-instance-id" value="single_box"/>-->
   </settings>
 
   <queues>
@@ -37,4 +36,4 @@
     <!-- <tier agent="1000@default" queue="support@default" level="1" position="1"/> -->
   </tiers>
 
-</configuration>
+</configuration> 

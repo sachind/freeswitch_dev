@@ -37,7 +37,7 @@ m4_include(m4/ax_c99_features.m4)
 m4_include(m4/ax_check_export_capability.m4)
 m4_include(m4/ax_check_arm_neon.m4)
 m4_include(m4/ax_func_aligned_alloc.m4)
-m4_include(m4/ac_func_memmove.m4)
+m4_include(m4/memmove.m4)
 
 AC_CONFIG_SRCDIR([src/tone_generate.c])
 AC_CONFIG_AUX_DIR([config])
@@ -231,7 +231,7 @@ case "$host" in
     ;;
 esac
 
-if test "${build}" = "${host}"
+if test "${build}" == "${host}"
 then
     AC_CHECK_HEADERS([X11/X.h])
 fi
@@ -275,7 +275,7 @@ AC_CHECK_HEADERS([FL/Fl_Audio_Meter.H])
 
 AC_LANG([C])
 
-if test "${build}" = "${host}"
+if test "${build}" == "${host}"
 then
     case "${host}" in
     x86_64-*)
@@ -370,10 +370,10 @@ gnu)
         COMP_VENDOR_CFLAGS="-mavx $COMP_VENDOR_CFLAGS"
     fi
     if test "$enable_sse4_2" = "yes" ; then
-        COMP_VENDOR_CFLAGS="-msse4.2 $COMP_VENDOR_CFLAGS"
+        COMP_VENDOR_CFLAGS="-msse42 $COMP_VENDOR_CFLAGS"
     fi
     if test "$enable_sse4_1" = "yes" ; then
-        COMP_VENDOR_CFLAGS="-msse4.1 $COMP_VENDOR_CFLAGS"
+        COMP_VENDOR_CFLAGS="-msse41 $COMP_VENDOR_CFLAGS"
     fi
     if test "$enable_ssse3" = "yes" ; then
         COMP_VENDOR_CFLAGS="-mssse3 $COMP_VENDOR_CFLAGS"
@@ -431,10 +431,10 @@ intel)
         COMP_VENDOR_CFLAGS="-mavx $COMP_VENDOR_CFLAGS"
     fi
     if test "$enable_sse4_2" = "yes" ; then
-        COMP_VENDOR_CFLAGS="-msse4.2 $COMP_VENDOR_CFLAGS"
+        COMP_VENDOR_CFLAGS="-msse42 $COMP_VENDOR_CFLAGS"
     fi
     if test "$enable_sse4_1" = "yes" ; then
-        COMP_VENDOR_CFLAGS="-msse4.1 $COMP_VENDOR_CFLAGS"
+        COMP_VENDOR_CFLAGS="-msse41 $COMP_VENDOR_CFLAGS"
     fi
     if test "$enable_ssse3" = "yes" ; then
         COMP_VENDOR_CFLAGS="-mssse3 $COMP_VENDOR_CFLAGS"

@@ -71,8 +71,6 @@ MY_DEFAULT_ARGS= --build=$(build) --host=$(host) --target=$(target) --prefix="$(
 
 sounds: sounds-en-us-callie-8000
 sounds-install: sounds-en-us-callie-8000-install
-sounds-allison: sounds-en-us-allison-8000
-sounds-allison-install: sounds-en-us-allison-8000-install
 sounds-ru: sounds-ru-RU-elena-8000
 sounds-ru-install: sounds-ru-RU-elena-8000-install
 sounds-fr: sounds-fr-ca-june-8000
@@ -82,8 +80,6 @@ moh-install: sounds-music-8000-install
 
 hd-sounds: sounds sounds-en-us-callie-16000
 hd-sounds-install: sounds-install sounds-en-us-callie-16000-install
-hd-sounds-allison: sounds-allison sounds-en-us-allison-16000
-hd-sounds-allison-install: sounds-allison-install sounds-en-us-allison-16000-install
 hd-sounds-ru: sounds-ru sounds-ru-RU-elena-16000
 hd-sounds-ru-install: sounds-ru-install sounds-ru-RU-elena-16000-install
 hd-sounds-fr: sounds-fr-ca-june-16000
@@ -93,8 +89,6 @@ hd-moh-install: moh-install sounds-music-16000-install
 
 uhd-sounds: hd-sounds sounds-en-us-callie-32000
 uhd-sounds-install: hd-sounds-install sounds-en-us-callie-32000-install
-uhd-sounds-allison: hd-sounds-allison sounds-en-us-allison-32000
-uhd-sounds-allison-install: hd-sounds-allison-install sounds-en-us-allison-32000-install
 uhd-sounds-ru: hd-sounds-ru sounds-ru-RU-elena-32000
 uhd-sounds-ru-install: hd-sounds-ru-install sounds-ru-RU-elena-32000-install
 uhd-sounds-fr: sounds-fr-ca-june-32000
@@ -104,8 +98,6 @@ uhd-moh-install: hd-moh-install sounds-music-32000-install
 
 cd-sounds: uhd-sounds sounds-en-us-callie-48000
 cd-sounds-install: uhd-sounds-install sounds-en-us-callie-48000-install
-cd-sounds-allison: uhd-sounds-allison sounds-en-us-allison-48000
-cd-sounds-allison-install: uhd-sounds-allison-install sounds-en-us-allison-48000-install
 cd-sounds-ru: uhd-sounds-ru sounds-ru-RU-elena-48000
 cd-sounds-ru-install: uhd-sounds-ru-install sounds-ru-RU-elena-48000-install
 cd-sounds-fr: sounds-fr-ca-june-48000
@@ -133,6 +125,7 @@ CORE_CFLAGS += -DSWITCH_HAVE_YUV
 endif
 CORE_CFLAGS += -I$(switch_srcdir)/libs/srtp/crypto/include -Ilibs/srtp/crypto/include
 CORE_CFLAGS += -I$(switch_builddir)/libs/spandsp/src -I$(switch_srcdir)/libs/spandsp/src 
+CORE_CFLAGS += -I$(switch_builddir)/libs/tiff-4.0.2/libtiff -I$(switch_srcdir)/libs/tiff-4.0.2/libtiff
 if ENABLE_LIBVPX
 CORE_CFLAGS += -DSWITCH_HAVE_VPX
 endif
@@ -173,14 +166,6 @@ endif
 
 if HAVE_FREETYPE
 CORE_CFLAGS += -DSWITCH_HAVE_FREETYPE $(LIBFREETYPE_CFLAGS)
-endif
-
-if HAVE_GUMBO
-CORE_CFLAGS += -DSWITCH_HAVE_GUMBO $(LIBGUMBO_CFLAGS)
-endif
-
-if HAVE_FVAD
-CORE_CFLAGS += -DSWITCH_HAVE_FVAD $(LIBFVAD_CFLAGS)
 endif
 
 ##
@@ -245,9 +230,9 @@ CORE_LIBS+=libfreeswitch_libyuv.la
 endif
 
 lib_LTLIBRARIES	         = libfreeswitch.la
-libfreeswitch_la_CFLAGS  = $(CORE_CFLAGS) $(SQLITE_CFLAGS) $(GUMBO_CFLAGS) $(FVAD_CFLAGS) $(FREETYPE_CFLAGS) $(CURL_CFLAGS) $(PCRE_CFLAGS) $(SPEEX_CFLAGS) $(LIBEDIT_CFLAGS) $(openssl_CFLAGS)  $(AM_CFLAGS)
+libfreeswitch_la_CFLAGS  = $(CORE_CFLAGS) $(SQLITE_CFLAGS) $(FREETYPE_CFLAGS) $(CURL_CFLAGS) $(PCRE_CFLAGS) $(SPEEX_CFLAGS) $(LIBEDIT_CFLAGS) $(openssl_CFLAGS)  $(AM_CFLAGS)
 libfreeswitch_la_LDFLAGS = -version-info 1:0:0 $(AM_LDFLAGS) $(PLATFORM_CORE_LDFLAGS) -no-undefined
-libfreeswitch_la_LIBADD  = $(CORE_LIBS) $(APR_LIBS) $(SQLITE_LIBS) $(GUMBO_LIBS) $(FVAD_LIBS) $(FREETYPE_LIBS) $(CURL_LIBS) $(PCRE_LIBS) $(SPEEX_LIBS) $(LIBEDIT_LIBS) $(openssl_LIBS) $(PLATFORM_CORE_LIBS)
+libfreeswitch_la_LIBADD  = $(CORE_LIBS) $(APR_LIBS) $(SQLITE_LIBS) $(FREETYPE_LIBS) $(CURL_LIBS) $(PCRE_LIBS) $(SPEEX_LIBS) $(LIBEDIT_LIBS) $(openssl_LIBS) $(PLATFORM_CORE_LIBS)
 libfreeswitch_la_DEPENDENCIES = $(BUILT_SOURCES)
 
 if HAVE_PNG
@@ -310,13 +295,9 @@ library_include_HEADERS = \
 	src/include/switch_xml_config.h \
 	src/include/switch_cpp.h \
 	src/include/switch_curl.h \
-	src/include/switch_cJSON.h \
-	src/include/switch_cJSON_Utils.h \
 	src/include/switch_json.h \
 	src/include/switch_utf8.h \
-	src/include/switch_msrp.h \
 	src/include/switch_vpx.h \
-	src/include/switch_vad.h \
 	libs/libteletone/src/libteletone_detect.h \
 	libs/libteletone/src/libteletone_generate.h \
 	libs/libteletone/src/libteletone.h \
@@ -393,14 +374,10 @@ libfreeswitch_la_SOURCES = \
 	src/switch_pcm.c \
 	src/switch_speex.c \
 	src/switch_profile.c \
-	src/cJSON.c \
-	src/cJSON_Utils.c \
 	src/switch_json.c \
 	src/switch_curl.c \
 	src/switch_hashtable.c\
 	src/switch_utf8.c \
-	src/switch_msrp.c \
-	src/switch_vad.c \
 	src/switch_vpx.c \
 	libs/libtpl-1.5/src/tpl.c \
 	libs/libteletone/src/libteletone_detect.c \
@@ -439,7 +416,7 @@ bin_PROGRAMS = freeswitch fs_cli fs_ivrd tone2wav fs_encode
 ## fs_cli ()
 ##
 fs_cli_SOURCES = libs/esl/src/esl.c libs/esl/src/esl_config.c libs/esl/src/esl_event.c \
-	libs/esl/src/esl_threadmutex.c libs/esl/fs_cli.c libs/esl/src/esl_json.c libs/esl/src/esl_buffer.c libs/esl/src/cJSON.c libs/esl/src/cJSON_Utils.c
+	libs/esl/src/esl_threadmutex.c libs/esl/fs_cli.c libs/esl/src/esl_json.c libs/esl/src/esl_buffer.c
 fs_cli_CFLAGS  = $(AM_CFLAGS) -I$(switch_srcdir)/libs/esl/src/include $(LIBEDIT_CFLAGS)
 fs_cli_LDFLAGS = $(AM_LDFLAGS) -lpthread $(ESL_LDFLAGS) -lm $(LIBEDIT_LIBS)
 
@@ -477,7 +454,7 @@ endif
 ## fs_ivrd ()
 ##
 fs_ivrd_SOURCES = libs/esl/src/esl.c libs/esl/src/esl_config.c libs/esl/src/esl_event.c \
-	libs/esl/src/esl_threadmutex.c libs/esl/ivrd.c libs/esl/src/esl_json.c libs/esl/src/esl_buffer.c libs/esl/src/cJSON.c libs/esl/src/cJSON_Utils.c
+	libs/esl/src/esl_threadmutex.c libs/esl/ivrd.c libs/esl/src/esl_json.c libs/esl/src/esl_buffer.c
 fs_ivrd_CFLAGS  = $(AM_CFLAGS) -I$(switch_srcdir)/libs/esl/src/include 
 fs_ivrd_LDFLAGS = $(AM_LDFLAGS) -lpthread $(ESL_LDFLAGS) -lm
 
@@ -573,7 +550,7 @@ libs/libzrtp/libzrtp.a:
 	cd libs/libzrtp && $(MAKE)
 
 libs/libvpx/Makefile:
-	cd libs/libvpx && CC="$(CC)" CXX="$(CXX)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" LDFLAGS="$(LDFLAGS)" ./configure --enable-pic --disable-docs --disable-examples --disable-install-bins --disable-install-srcs --disable-unit-tests --size-limit=16384x16384 --extra-cflags="$(VISIBILITY_FLAG)"
+	cd libs/libvpx && CC="$(CC)" CXX="$(CXX)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" LDFLAGS="$(LDFLAGS)" ./configure --enable-pic --disable-docs --disable-examples --disable-install-bins --disable-install-srcs --disable-unit-tests --extra-cflags="$(VISIBILITY_FLAG)"
 
 libs/libvpx/libvpx.a: libs/libvpx/Makefile
 	@cd libs/libvpx && $(MAKE)
@@ -598,11 +575,14 @@ libs/apr-util/libaprutil-1.la: libs/apr/libapr-1.la libs/apr-util libs/apr-util/
 
 SRTP_SRC =	libs/srtp/srtp/srtp.c libs/srtp/srtp/ekt.c libs/srtp/crypto/cipher/cipher.c libs/srtp/crypto/cipher/null_cipher.c \
 		libs/srtp/crypto/cipher/aes.c libs/srtp/crypto/cipher/aes_icm.c \
+		libs/srtp/crypto/cipher/aes_cbc.c \
 		libs/srtp/crypto/hash/null_auth.c libs/srtp/crypto/hash/sha1.c \
 		libs/srtp/crypto/hash/hmac.c libs/srtp/crypto/hash/auth.c \
 		libs/srtp/crypto/math/datatypes.c libs/srtp/crypto/math/stat.c \
 		libs/srtp/crypto/kernel/crypto_kernel.c libs/srtp/crypto/kernel/alloc.c \
-		libs/srtp/crypto/kernel/key.c libs/srtp/crypto/kernel/err.c \
+		libs/srtp/crypto/kernel/key.c \
+		libs/srtp/crypto/rng/prng.c libs/srtp/crypto/rng/ctr_prng.c \
+		libs/srtp/crypto/kernel/err.c libs/srtp/crypto/rng/rand_source.c \
 		libs/srtp/crypto/replay/rdb.c libs/srtp/crypto/replay/rdbx.c libs/srtp/crypto/replay/ut_sim.c 
 
 libs/srtp/libsrtp.la: libs/srtp libs/srtp/.update $(SRTP_SRC)
@@ -737,7 +717,7 @@ pristine:
 	git clean -fdx
 	git reset --hard
 
-update-clean: clean python-reconf
+update-clean: clean python-reconf lua-reconf spandsp-reconf srtp-reconf
 	cd libs/sofia-sip && $(MAKE) clean
 	cd libs/esl && $(MAKE) clean
 	cd libs/srtp && $(MAKE) clean
@@ -750,6 +730,11 @@ sndfile-reconf:
 	cd libs/libsndfile && autoreconf
 	cd libs/libsndfile && ./config.status --recheck
 	cd libs/libsndfile && ./config.status
+
+tiff-reconf:
+	cd libs/tiff-4.0.2 && autoreconf -fi
+	cd libs/tiff-4.0.2 && sh ./configure.gnu $(MY_DEFAULT_ARGS)
+	cd libs/tiff-4.0.2 && make
 
 python-reconf:
 	rm -f src/mod/languages/mod_python/Makefile
@@ -772,7 +757,7 @@ iks-reconf:
 	cd libs/iksemel && sh ./configure.gnu $(MY_DEFAULT_ARGS)
 	$(MAKE) mod_dingaling-clean
 
-spandsp-reconf:
+spandsp-reconf: tiff-reconf
 	cd libs/spandsp && $(MAKE) clean || echo
 	cd libs/spandsp && autoreconf -fi
 	cd libs/spandsp && sh ./configure.gnu $(MY_DEFAULT_ARGS)
@@ -782,6 +767,10 @@ sofia-reconf:
 	cd libs/sofia-sip && sh ./autogen.sh
 	cd libs/sofia-sip && $(MAKE) clean
 	cd libs/sofia-sip && ./configure $(MY_DEFAULT_ARGS) --with-pic --with-glib=no --disable-shared
+
+lua-reconf:
+	cd src/mod/languages/mod_lua/lua && make clean
+	cd src/mod/languages/mod_lua && make clean
 
 cluecon:
 	@clear

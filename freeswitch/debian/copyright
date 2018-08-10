@@ -1598,6 +1598,17 @@ Files: src/mod/endpoints/mod_gsmopen/asterisk/celliax_spandsp.[ch]
 Copyright: 2001-2006 Steve Underwood
 License: GPL-2
 
+Files: src/mod/endpoints/mod_skypopen/oss/skypopen.h
+ src/mod/endpoints/mod_skypopen/oss/main.c
+Copyright: 2010 Giovanni Maruzzelli
+ 2001 Alessandro Rubini and Jonathan Corbet
+ 2001 O'Reilly & Associates
+License: MPL-1.1
+
+Files: src/mod/endpoints/mod_skypopen/old-stuff/*
+Copyright: Jaroslav Kysela <perex@perex.cz>
+License: GPL-2+
+
 Files: src/mod/endpoints/mod_skinny/*
  src/mod/asr_tts/mod_tts_commandline/mod_tts_commandline.c
 Copyright: 2009-2010, Mathieu Parent <math.parent@gmail.com>
@@ -1688,6 +1699,27 @@ Files: libs/libsndfile/src/ima_oki_adpcm.h
 Copyright: 2007 <robs@users.sourceforge.net>
  2007-2009 Erik de Castro Lopo <erikd@mega-nerd.com>
 License: LGPL-2+
+
+Files: libs/tiff-4.0.2/*
+Copyright: 1988-1997 Sam Leffler
+ 1991-1997 Silicon Graphics, Inc.
+ 2006-2010 Richard Nolde
+ 1999-2000 Frank Warmerdam
+ 1990 by Digital Equipment Corporation, Maynard, Massachusetts.
+ 1990 by Sun Microsystems, Inc.
+ Joris Van Damme <info@awaresystems.be>
+ AWare Systems <http://www.awaresystems.be/>
+License: MIT/X11 (BSD like)
+
+Files: libs/tiff-4.0.2/port/getopt.c
+ libs/tiff-4.0.2/port/strcasecmp.c
+ libs/tiff-4.0.2/port/lfind.c
+Copyright: 1987, 1993, 1994, The Regents of the University of California.
+License: BSD-3-clause
+
+Files: libs/tiff-4.0.2/port/strtoull.c
+Copyright: 1992, 1993, The Regents of the University of California.
+License: BSD-4-clause
 
 Files: src/switch_dso.c
 Copyright: 2008 Michael Jerris

@@ -43,9 +43,32 @@
 
 int conference_member_noise_gate_check(conference_member_t *member)
 {
-	int r = (int32_t)member->score > member->energy_level;
+	int r = 0;
+
+
+	if (member->conference->agc_level && member->agc_volume_in_level != 0) {
+		int target_score = 0;
+
+		target_score = (member->energy_level + (25 * member->agc_volume_in_level));
+
+		if (target_score < 0) target_score = 0;
+
+		r = (int)member->score > target_score;
+
+	} else {
+		r = (int32_t)member->score > member->energy_level;
+	}
 
 	return r;
+}
+
+void conference_member_clear_avg(conference_member_t *member)
+{
+
+	member->avg_score = 0;
+	member->avg_itt = 0;
+	member->avg_tally = 0;
+	member->agc_concur = 0;
 }
 
 void conference_member_do_binding(conference_member_t *member, conference_key_callback_t handler, const char *digits, const char *data)
@@ -62,7 +85,8 @@ void conference_member_do_binding(conference_member_t *member, conference_key_ca
 	}
 
 	binding->handler = handler;
-	switch_ivr_dmachine_bind(member->dmachine, "conf", digits, 0, 0, conference_loop_dmachine_dispatcher, binding);
+	switch_ivr_dmachine_bind(member->dmachine, "conf", digits, 0, conference_loop_dmachine_dispatcher, binding);
+
 }
 
 void conference_member_bind_controls(conference_member_t *member, const char *controls)
@@ -73,7 +97,6 @@ void conference_member_bind_controls(conference_member_t *member, const char *co
 
 	switch_event_create(&params, SWITCH_EVENT_REQUEST_PARAMS);
 	switch_event_add_header_string(params, SWITCH_STACK_BOTTOM, "Conf-Name", member->conference->name);
-	switch_event_add_header_string(params, SWITCH_STACK_BOTTOM, "Conf-Profile", member->conference->profile_name);
 	switch_event_add_header_string(params, SWITCH_STACK_BOTTOM, "Action", "request-controls");
 	switch_event_add_header_string(params, SWITCH_STACK_BOTTOM, "Controls", controls);
 
@@ -130,16 +153,14 @@ void conference_member_update_status_field(conference_member_t *member)
 	if (!member->conference->la || !member->json || !member->status_field || conference_utils_member_test_flag(member, MFLAG_SECOND_SCREEN)) {
 		return;
 	}
-
+	
 	switch_live_array_lock(member->conference->la);
 
-	if (conference_utils_member_test_flag(member, MFLAG_HOLD)) {
-		str = "HOLD";
-	} else if (!conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK)) {
+	if (!conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK)) {
 		str = "MUTE";
 	} else if (switch_channel_test_flag(member->channel, CF_HOLD)) {
 		str = "HOLD";
-	} else if (member->id == member->conference->floor_holder) {
+	} else if (member == member->conference->floor_holder) {
 		if (conference_utils_member_test_flag(member, MFLAG_TALKING)) {
 			str = "TALKING (FLOOR)";
 		} else {
@@ -171,14 +192,14 @@ void conference_member_update_status_field(conference_member_t *member)
 		cJSON_AddItemToObject(audio, "deaf", cJSON_CreateBool(!conference_utils_member_test_flag(member, MFLAG_CAN_HEAR)));
 		cJSON_AddItemToObject(audio, "onHold", cJSON_CreateBool(switch_channel_test_flag(member->channel, CF_HOLD)));
 		cJSON_AddItemToObject(audio, "talking", cJSON_CreateBool(conference_utils_member_test_flag(member, MFLAG_TALKING)));
-		cJSON_AddItemToObject(audio, "floor", cJSON_CreateBool(member->id == member->conference->floor_holder));
+		cJSON_AddItemToObject(audio, "floor", cJSON_CreateBool(member == member->conference->floor_holder));
 		cJSON_AddItemToObject(audio, "energyScore", cJSON_CreateNumber(member->score));
 		cJSON_AddItemToObject(json, "audio", audio);
 
 		if (switch_channel_test_flag(member->channel, CF_VIDEO) || member->avatar_png_img) {
 			video = cJSON_CreateObject();
 
-			if (conference_utils_member_test_flag(member, MFLAG_CAN_BE_SEEN) &&
+			if (conference_utils_member_test_flag(member, MFLAG_CAN_BE_SEEN) && 
 				member->video_layer_id > -1 && switch_core_session_media_flow(member->session, SWITCH_MEDIA_TYPE_VIDEO) != SWITCH_MEDIA_FLOW_SENDONLY) {
 				cJSON_AddItemToObject(video, "visible", cJSON_CreateTrue());
 			} else {
@@ -199,9 +220,6 @@ void conference_member_update_status_field(conference_member_t *member)
 			}
 			cJSON_AddItemToObject(video, "reservationID", member->video_reservation_id ?
 								  cJSON_CreateString(member->video_reservation_id) : cJSON_CreateNull());
-
-			cJSON_AddItemToObject(video, "roleID", member->video_role_id ?
-								  cJSON_CreateString(member->video_role_id) : cJSON_CreateNull());
 
 			cJSON_AddItemToObject(video, "videoLayerID", cJSON_CreateNumber(member->video_layer_id));
 
@@ -239,7 +257,7 @@ switch_status_t conference_member_add_event_data(conference_member_t *member, sw
 
 	if (member->conference) {
 		status = conference_event_add_data(member->conference, event);
-		switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Floor", "%s", (member->id == member->conference->floor_holder) ? "true" : "false" );
+		switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Floor", "%s", (member == member->conference->floor_holder) ? "true" : "false" );
 	}
 
 	if (member->session) {
@@ -260,7 +278,6 @@ switch_status_t conference_member_add_event_data(conference_member_t *member, sw
 	switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Speak", "%s", conference_utils_member_test_flag(member, MFLAG_CAN_SPEAK) ? "true" : "false" );
 	switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Talking", "%s", conference_utils_member_test_flag(member, MFLAG_TALKING) ? "true" : "false" );
 	switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Mute-Detect", "%s", conference_utils_member_test_flag(member, MFLAG_MUTE_DETECT) ? "true" : "false" );
-	switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Hold", "%s", conference_utils_member_test_flag(member, MFLAG_HOLD) ? "true" : "false" );
 	switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Member-ID", "%u", member->id);
 	switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Member-Type", "%s", conference_utils_member_test_flag(member, MFLAG_MOD) ? "moderator" : "member");
 	switch_event_add_header(event, SWITCH_STACK_BOTTOM, "Member-Ghost", "%s", conference_utils_member_test_flag(member, MFLAG_GHOST) ? "true" : "false");
@@ -407,7 +424,7 @@ conference_member_t *conference_member_get_by_var(conference_obj_t *conference, 
 	switch_mutex_lock(conference->member_mutex);
 	for (member = conference->members; member; member = member->next) {
 		const char *check_var;
-
+		
 		if (conference_utils_member_test_flag(member, MFLAG_NOCHANNEL)) {
 			continue;
 		}
@@ -439,49 +456,31 @@ conference_member_t *conference_member_get_by_var(conference_obj_t *conference, 
 	return member;
 }
 
-
-/* traverse the conference member list for the specified member with role  and return it's pointer */
-conference_member_t *conference_member_get_by_role(conference_obj_t *conference, const char *role_id)
+void conference_member_check_agc_levels(conference_member_t *member)
 {
-	conference_member_t *member = NULL;
+	int x = 0;
 
-	switch_assert(conference != NULL);
-	if (zstr(role_id)) {
-		return NULL;
+	if (!member->avg_score) return;
+
+	if ((int)member->avg_score < member->conference->agc_level - 100) {
+		member->agc_volume_in_level++;
+		switch_normalize_volume_granular(member->agc_volume_in_level);
+		x = 1;
+	} else if ((int)member->avg_score > member->conference->agc_level + 100) {
+		member->agc_volume_in_level--;
+		switch_normalize_volume_granular(member->agc_volume_in_level);
+		x = -1;
 	}
 
-	switch_mutex_lock(conference->member_mutex);
-	for (member = conference->members; member; member = member->next) {
+	if (x) {
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG7,
+						  "AGC %s:%d diff:%d level:%d cur:%d avg:%d vol:%d %s\n",
+						  member->conference->name,
+						  member->id, member->conference->agc_level - member->avg_score, member->conference->agc_level,
+						  member->score, member->avg_score, member->agc_volume_in_level, x > 0 ? "+++" : "---");
 
-		if (conference_utils_member_test_flag(member, MFLAG_NOCHANNEL)) {
-			continue;
-		}
-		
-		if (!zstr(member->video_role_id) && !strcmp(role_id, member->video_role_id)) {
-			break;
-		}
+		conference_member_clear_avg(member);
 	}
-
-	if (member) {
-		if (!conference_utils_member_test_flag(member, MFLAG_INTREE) ||
-			conference_utils_member_test_flag(member, MFLAG_KICKED) ||
-			(member->session && !switch_channel_up(switch_core_session_get_channel(member->session)))) {
-
-			/* member is kicked or hanging up so forget it */
-			member = NULL;
-		}
-	}
-
-	if (member) {
-		if (switch_thread_rwlock_tryrdlock(member->rwlock) != SWITCH_STATUS_SUCCESS) {
-			/* if you cant readlock it's way to late to do anything */
-			member = NULL;
-		}
-	}
-
-	switch_mutex_unlock(conference->member_mutex);
-
-	return member;
 }
 
 void conference_member_check_channels(switch_frame_t *frame, conference_member_t *member, switch_bool_t in)
@@ -632,14 +631,6 @@ conference_relationship_t *conference_member_add_relationship(conference_member_
 	return rel;
 }
 
-void conference_member_set_score_iir(conference_member_t *member, uint32_t score)
-{
-	member->score_iir = score;
-	if (member->id == member->conference->floor_holder) {
-		member->conference->floor_holder_score_iir = score;
-	}
-}
-
 /* Remove a custom relationship from a member */
 switch_status_t conference_member_del_relationship(conference_member_t *member, uint32_t id)
 {
@@ -710,11 +701,7 @@ switch_status_t conference_member_add(conference_obj_t *conference, conference_m
 	member->join_time = switch_epoch_time_now(NULL);
 	member->conference = conference;
 	member->energy_level = conference->energy_level;
-	member->auto_energy_level = conference->auto_energy_level;
-	member->max_energy_level = conference->max_energy_level;
-	member->max_energy_hit_trigger = conference->max_energy_hit_trigger;
-	member->burst_mute_count = conference->burst_mute_count;;
-	conference_member_set_score_iir(member, 0);
+	member->score_iir = 0;
 	member->verbose_events = conference->verbose_events;
 	member->video_layer_id = -1;
 	member->layer_timeout = DEFAULT_LAYER_TIMEOUT;
@@ -724,9 +711,8 @@ switch_status_t conference_member_add(conference_obj_t *conference, conference_m
 	conference_utils_member_set_flag_locked(member, MFLAG_INTREE);
 	conference_cdr_add(member);
 
-	if (!conference_utils_member_test_flag(member, MFLAG_NOCHANNEL)) {
 
-		conference_api_set_agc(member, NULL);
+	if (!conference_utils_member_test_flag(member, MFLAG_NOCHANNEL)) {
 
 		if (switch_core_session_media_flow(member->session, SWITCH_MEDIA_TYPE_VIDEO) == SWITCH_MEDIA_FLOW_SENDONLY) {
 			conference_utils_member_clear_flag_locked(member, MFLAG_CAN_BE_SEEN);
@@ -757,10 +743,6 @@ switch_status_t conference_member_add(conference_obj_t *conference, conference_m
 			conference_member_set_logo(member, var);
 		}
 
-		if ((var = switch_channel_get_variable_dup(member->channel, "video_codec_group", SWITCH_FALSE, -1))) {
-			member->video_codec_group = switch_core_strdup(member->pool, var);
-		}
-
 		if ((var = switch_channel_get_variable_dup(member->channel, "conference_join_volume_in", SWITCH_FALSE, -1))) {
 			uint32_t id = atoi(var);
 
@@ -785,7 +767,7 @@ switch_status_t conference_member_add(conference_obj_t *conference, conference_m
 				member->energy_level = id;
 			}
 		}
-
+		
 		if ((var = switch_channel_get_variable_dup(member->channel, "video_initial_canvas", SWITCH_FALSE, -1))) {
 			uint32_t id = atoi(var) - 1;
 			if (id < conference->canvas_count) {
@@ -796,21 +778,19 @@ switch_status_t conference_member_add(conference_obj_t *conference, conference_m
 
 		if ((var = switch_channel_get_variable_dup(member->channel, "video_initial_watching_canvas", SWITCH_FALSE, -1))) {
 			uint32_t id = atoi(var) - 1;
-
+			
 			if (id == 0) {
 				id = conference->canvas_count;
 			}
-
+			
 			if (id <= conference->canvas_count && conference->canvases[id]) {
 				member->watching_canvas_id = id;
 			}
 		}
-
+		
 		conference_video_reset_member_codec_index(member);
 
 		if (has_video) {
-			int bitrate = conference->video_codec_settings.video.bandwidth;
-			
 			if ((var = switch_channel_get_variable_dup(member->channel, "video_mute_png", SWITCH_FALSE, -1))) {
 				member->video_mute_png = switch_core_strdup(member->pool, var);
 				member->video_mute_img = switch_img_read_png(member->video_mute_png, SWITCH_IMG_FMT_I420);
@@ -820,10 +800,6 @@ switch_status_t conference_member_add(conference_obj_t *conference, conference_m
 				member->video_reservation_id = switch_core_strdup(member->pool, var);
 			}
 
-			if ((var = switch_channel_get_variable_dup(member->channel, "video_role_id", SWITCH_FALSE, -1))) {
-				member->video_role_id = switch_core_strdup(member->pool, var);
-			}
-
 			if ((var = switch_channel_get_variable(channel, "video_use_dedicated_encoder")) && switch_true(var)) {
 				conference_utils_member_set_flag_locked(member, MFLAG_NO_MINIMIZE_ENCODING);
 			}
@@ -831,22 +807,16 @@ switch_status_t conference_member_add(conference_obj_t *conference, conference_m
 			if ((var = switch_channel_get_variable(member->channel, "rtp_video_max_bandwidth_in"))) {
 				member->max_bw_in = switch_parse_bandwidth_string(var);
 			}
-
+		
 			if ((var = switch_channel_get_variable(member->channel, "rtp_video_max_bandwidth_out"))) {
 				member->max_bw_out = switch_parse_bandwidth_string(var);
 
 				if (member->max_bw_out < conference->video_codec_settings.video.bandwidth) {
 					conference_utils_member_set_flag_locked(member, MFLAG_NO_MINIMIZE_ENCODING);
-					bitrate = member->max_bw_out;
+					switch_core_media_set_outgoing_bitrate(member->session, SWITCH_MEDIA_TYPE_VIDEO, member->max_bw_out);
 				}
 			}
-			
-			if (bitrate) {
-				switch_core_media_set_outgoing_bitrate(member->session, SWITCH_MEDIA_TYPE_VIDEO, bitrate);
-			}
-		
 		}
-
 		
 		switch_channel_set_variable_printf(channel, "conference_member_id", "%d", member->id);
 		switch_channel_set_variable_printf(channel, "conference_moderator", "%s", conference_utils_member_test_flag(member, MFLAG_MOD) ? "true" : "false");
@@ -871,14 +841,13 @@ switch_status_t conference_member_add(conference_obj_t *conference, conference_m
 		}
 
 		if (conference->count > 1) {
-			if (((conference->moh_sound || conference->tmp_moh_sound) && !conference_utils_test_flag(conference, CFLAG_WAIT_MOD)) ||
+			if ((conference->moh_sound && !conference_utils_test_flag(conference, CFLAG_WAIT_MOD)) ||
 				(conference_utils_test_flag(conference, CFLAG_WAIT_MOD) && !switch_true(switch_channel_get_variable(channel, "conference_permanent_wait_mod_moh")))) {
 				/* stop MoH if any */
 				conference_file_stop(conference, FILE_STOP_ASYNC);
-				conference_utils_clear_flag(conference, CFLAG_NO_MOH);
 			}
 
-			if (!switch_channel_test_app_flag_key("conference_silent", channel, CONF_SILENT_REQ)) {
+			if (!switch_channel_test_app_flag_key("conference_silent", channel, CONF_SILENT_REQ) && !zstr(conference->enter_sound)) {
 				const char * enter_sound = switch_channel_get_variable(channel, "conference_enter_sound");
 				if (conference_utils_test_flag(conference, CFLAG_ENTER_SOUND) && !conference_utils_member_test_flag(member, MFLAG_SILENT)) {
 					if (!zstr(enter_sound)) {
@@ -986,7 +955,7 @@ switch_status_t conference_member_add(conference_obj_t *conference, conference_m
 			cJSON *dvars;
 			switch_event_t *var_event;
 			switch_event_header_t *hi;
-
+			
 			member->json = cJSON_CreateArray();
 			cJSON_AddItemToArray(member->json, cJSON_CreateStringPrintf("%0.4d", member->id));
 			cJSON_AddItemToArray(member->json, cJSON_CreateString(switch_channel_get_variable(member->channel, "caller_id_number")));
@@ -1007,7 +976,7 @@ switch_status_t conference_member_add(conference_obj_t *conference, conference_m
 				for (hi = var_event->headers; hi; hi = hi->next) {
 					if (!strncasecmp(hi->name, "verto_dvar_", 11)) {
 						char *var = hi->name + 11;
-
+						
 						if (var) {
 							cJSON_AddItemToObject(dvars, var, cJSON_CreateString(hi->value));
 						}
@@ -1069,57 +1038,43 @@ switch_status_t conference_member_add(conference_obj_t *conference, conference_m
 	return status;
 }
 
-void conference_member_set_floor_holder(conference_obj_t *conference, conference_member_t *member, uint32_t id)
+void conference_member_set_floor_holder(conference_obj_t *conference, conference_member_t *member)
 {
 	switch_event_t *event;
-	int old_member = 0;
-	uint32_t old_id = 0;
-	conference_member_t *lmember = NULL;
+	conference_member_t *old_member = NULL;
+	int old_id = 0;
 
-
-	if (!member && id) {
-		member = lmember = conference_member_get(conference, id);
-	}
-
-	if (member && conference_utils_member_test_flag(member, MFLAG_DED_VID_LAYER)) {
-		goto end;
-	}
-	
-	conference->floor_holder_score_iir = 0;
-	
 	if (conference->floor_holder) {
-		if ((member && conference->floor_holder == member->id) || (id && conference->floor_holder == id)) {
-			goto end;
+		if (conference->floor_holder == member) {
+			return;
 		} else {
 			old_member = conference->floor_holder;
-			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "Dropping floor %d\n", old_member);
+			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "Dropping floor %s\n",
+							  switch_channel_get_name(old_member->channel));
+
 		}
 	}
-	
+
+	switch_mutex_lock(conference->mutex);
 	if (member) {
 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "Adding floor %s\n",
 						  switch_channel_get_name(member->channel));
 
-		conference->floor_holder = member->id;
-		conference_member_set_score_iir(member, 0);
+		conference->floor_holder = member;
 		conference_member_update_status_field(member);
 	} else {
-		conference->floor_holder = 0;
+		conference->floor_holder = NULL;
 	}
 
 
 	if (old_member) {
-		conference_member_t *omember = NULL;
-		
-		if ((omember = conference_member_get(conference, old_member))) {
-			old_id = old_member;
-			conference_member_update_status_field(omember);
-			omember->floor_packets = 0;
-			switch_thread_rwlock_unlock(omember->rwlock);
-		}
+		old_id = old_member->id;
+		conference_member_update_status_field(old_member);
+		old_member->floor_packets = 0;
 	}
 
 	conference_utils_set_flag(conference, CFLAG_FLOOR_CHANGE);
+	switch_mutex_unlock(conference->mutex);
 
 	if (test_eflag(conference, EFLAG_FLOOR_CHANGE)) {
 		switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, CONF_EVENT_MAINT);
@@ -1132,8 +1087,8 @@ void conference_member_set_floor_holder(conference_obj_t *conference, conference
 		}
 
 		if (conference->floor_holder) {
-			conference_member_add_event_data(member, event);
-			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "New-ID", "%d", conference->floor_holder);
+			conference_member_add_event_data(conference->floor_holder, event);
+			switch_event_add_header(event, SWITCH_STACK_BOTTOM, "New-ID", "%d", conference->floor_holder->id);
 		} else {
 			switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "New-ID", "none");
 		}
@@ -1141,11 +1096,6 @@ void conference_member_set_floor_holder(conference_obj_t *conference, conference
 		switch_event_fire(&event);
 	}
 
- end:
-
-	if (lmember) {
-		switch_thread_rwlock_unlock(lmember->rwlock);
-	}
 }
 
 /* Gain exclusive access and remove the member from the list */
@@ -1163,10 +1113,6 @@ switch_status_t conference_member_del(conference_obj_t *conference, conference_m
 
 	switch_thread_rwlock_wrlock(member->rwlock);
 
-	if (member->video_queue) {
-		conference_video_flush_queue(member->video_queue, 0);
-	}
-
 	if (member->session && (exit_sound = switch_channel_get_variable(switch_core_session_get_channel(member->session), "conference_exit_sound"))) {
 		conference_file_play(conference, (char *)exit_sound, CONF_DEFAULT_LEADIN,
 							 switch_core_session_get_channel(member->session), 0);
@@ -1179,10 +1125,6 @@ switch_status_t conference_member_del(conference_obj_t *conference, conference_m
 	conference_member_del_relationship(member, 0);
 
 	conference_cdr_del(member);
-	
-	if (member->agc) {
-		switch_agc_destroy(&member->agc);
-	}
 
 #ifdef OPENAL_POSITIONING
 	if (member->al && member->al->device) {
@@ -1207,13 +1149,6 @@ switch_status_t conference_member_del(conference_obj_t *conference, conference_m
 	switch_mutex_lock(member->audio_out_mutex);
 	lock_member(member);
 	conference_utils_member_clear_flag(member, MFLAG_INTREE);
-
-
-	switch_safe_free(member->text_framedata);
-	member->text_framesize = 0;
-	if (member->text_buffer) {
-		switch_buffer_destroy(&member->text_buffer);
-	}
 
 	if (member->rec) {
 		conference->recording_members--;
@@ -1263,8 +1198,8 @@ switch_status_t conference_member_del(conference_obj_t *conference, conference_m
 		switch_core_speech_close(&member->lsh, &flags);
 	}
 
-	if (member->id == member->conference->floor_holder) {
-		conference_member_set_floor_holder(member->conference, NULL, 0);
+	if (member == member->conference->floor_holder) {
+		conference_member_set_floor_holder(member->conference, NULL);
 	}
 
 	if (member->id == member->conference->video_floor_holder) {

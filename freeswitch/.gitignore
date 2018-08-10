@@ -249,10 +249,3 @@ libs/PaxHeaders.1693/
 
 libs/lua-*/
 
-libs/g722_1-*/
-libs/ilbc-*/
-libs/broadvoice-*/
-libs/libcodec2-*/
-libs/libsilk-*/
-libs/rabbitmq-c-*/
-libs/rabbitmq-c-*.zip

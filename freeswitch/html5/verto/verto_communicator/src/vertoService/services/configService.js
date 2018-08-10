@@ -41,14 +41,6 @@ vertoService.service('config', ['$rootScope', '$http', '$location', 'storage', '
           verto.data.googleclientid = data.googleclientid;
         }
 
-        if (data.wsFallbackURL) {
-          verto.data.wsFallbackURL = data.wsFallbackURL;
-        }
-
-        if (data.turnServer) {
-          verto.data.turnServer = data.turnServer;
-        }
-
         angular.extend(verto.data, data);
 
         /**

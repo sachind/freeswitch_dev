@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Rupa Schomaker <rupa@rupa.com>
  * John Wehle <john@feith.com>
@@ -478,7 +478,7 @@ static int sockopt_callback(void *clientp, curl_socket_t curlfd,
 	switch_mutex_lock(context->audio_mutex);
 	context->curlfd = curlfd;
 	switch_mutex_unlock(context->audio_mutex);
-
+	
 	return 0;
 }
 
@@ -701,12 +701,8 @@ static switch_status_t shout_file_open(switch_file_handle_t *handle, const char 
 				mpg123err = mpg123_strerror(context->mh);
 				goto error;
 			}
-			context->stream_url = switch_core_sprintf(context->memory_pool, "http%s://%s",
-				(handle->stream_name && !strcmp(handle->stream_name, "shouts")) ? "s" : "", path);
+			context->stream_url = switch_core_sprintf(context->memory_pool, "http://%s", path);
 			context->prebuf = handle->prebuf;
-
-			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Opening stream: %s\n", context->stream_url);
-
 			launch_read_stream_thread(context);
 			switch_cond_next();
 		} else {
@@ -756,16 +752,16 @@ static switch_status_t shout_file_open(switch_file_handle_t *handle, const char 
 
 		}
 		context->channels = handle->channels;
-
+		
 		if (globals.brate) {
 			lame_set_brate(context->gfp, globals.brate);
 		} else {
 			lame_set_brate(context->gfp, 16 * (handle->samplerate / 8000) * handle->channels);
 		}
-
+		
 		lame_set_num_channels(context->gfp, handle->channels);
 		lame_set_in_samplerate(context->gfp, handle->samplerate);
-
+		
 		if (globals.resample) {
 			lame_set_out_samplerate(context->gfp, globals.resample);
 		} else {
@@ -884,7 +880,7 @@ static switch_status_t shout_file_open(switch_file_handle_t *handle, const char 
 
 		} else {
 			const char *mask = "wb+";
-
+			
 			if (switch_test_flag(handle, SWITCH_FILE_WRITE_APPEND)) {
 				mask = "ab+";
 			}
@@ -987,7 +983,7 @@ static switch_status_t shout_file_read(switch_file_handle_t *handle, void *data,
 		if (newbytes < bytes) {
 			bytes = newbytes;
 		}
-		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Padding mp3 stream with %ds of empty audio. (%s)\n",
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Padding mp3 stream with %ds of empty audio. (%s)\n", 
 						  context->buffer_seconds, context->stream_url);
 
 		memset(data, 255, bytes);
@@ -1683,17 +1679,6 @@ static switch_status_t switch_mp3_encode(switch_codec_t *codec,
 		return SWITCH_STATUS_FALSE;
 	}
 
-	if (flag && *flag == 0xFFFFFFFF) { // query frame_size
-		*(uint32_t *)encoded_data = lame_get_framesize(context->gfp);
-		*encoded_data_len = sizeof(uint32_t);
-		return SWITCH_STATUS_SUCCESS;
-	}
-
-	if (decoded_data_len == 0) { // flush encoder buffer
-		*encoded_data_len = lame_encode_flush(context->gfp, encoded_data, *encoded_data_len);
-		return SWITCH_STATUS_SUCCESS;
-	}
-
 	if (codec->implementation->number_of_channels == 2) {
 		len = lame_encode_buffer_interleaved(context->gfp, decoded_data, decoded_data_len / 4, encoded_data, *encoded_data_len);
 	} else {
@@ -1728,12 +1713,11 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_shout_load)
 	switch_codec_interface_t *codec_interface;
 	int mpf = 10000, spf = 80, bpf = 160, count = 1;
 	int RATES[] = {8000, 11025, 16000, 22050, 32000, 44100, 48000};
-	int i = 0;
+	int i;
 
-	supported_formats[i++] = "shout";
-	supported_formats[i++] = "shouts";
-	supported_formats[i++] = "mp3";
-	supported_formats[i++] = "mpga";
+	supported_formats[0] = "shout";
+	supported_formats[1] = "mp3";
+	supported_formats[2] = "mpga";
 
 	/* connect my internal structure to the blank pointer passed to me */
 	*module_interface = switch_loadable_module_create_module_interface(pool, modname);

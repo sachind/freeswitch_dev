@@ -44,6 +44,7 @@ SWITCH_BEGIN_EXTERN_C
 #define SWITCH_RTP_MAX_BUF_LEN 16384
 #define SWITCH_RTCP_MAX_BUF_LEN 16384
 #define SWITCH_RTP_MAX_BUF_LEN_WORDS 4094 /* (max / 4) - 2 */
+#define SWITCH_RTP_MAX_CRYPTO_LEN 64
 //#define SWITCH_RTP_KEY_LEN 30
 //#define SWITCH_RTP_CRYPTO_KEY_32 "AES_CM_128_HMAC_SHA1_32"
 #define SWITCH_RTP_CRYPTO_KEY_80 "AES_CM_128_HMAC_SHA1_80"
@@ -66,14 +67,14 @@ typedef enum {
 typedef struct switch_srtp_crypto_suite_s {
 	char *name;
 	switch_rtp_crypto_key_type_t type;
-	int keysalt_len;
-	int salt_len;
+	int keylen;
 } switch_srtp_crypto_suite_t;
+
 
 struct switch_rtp_crypto_key {
 	uint32_t index;
 	switch_rtp_crypto_key_type_t type;
-	unsigned char keysalt[SWITCH_RTP_MAX_CRYPTO_LEN];
+	unsigned char key[SWITCH_RTP_MAX_CRYPTO_LEN];
 	switch_size_t keylen;
 	struct switch_rtp_crypto_key *next;
 };
@@ -169,7 +170,9 @@ typedef enum { /* FMT Values for PSFB Payload Types http://www.iana.org/assignme
 
 
 
-SWITCH_DECLARE(switch_status_t) switch_rtp_add_crypto_key(switch_rtp_t *rtp_session, switch_rtp_crypto_direction_t direction, uint32_t index, switch_secure_settings_t *ssec);
+SWITCH_DECLARE(switch_status_t) switch_rtp_add_crypto_key(switch_rtp_t *rtp_session,
+														  switch_rtp_crypto_direction_t direction,
+														  uint32_t index, switch_rtp_crypto_key_type_t type, unsigned char *key, switch_size_t keylen);
 
 ///\defgroup rtp RTP (RealTime Transport Protocol)
 ///\ingroup core1

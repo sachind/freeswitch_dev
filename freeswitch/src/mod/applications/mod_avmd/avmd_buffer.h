@@ -44,7 +44,7 @@ extern size_t next_power_of_2(size_t v);
     { \
 	(b)->pos++; \
 	(b)->pos &= (b)->mask; \
-	(b)->lpos + 1 < 2 * (b)->buf_len ? (b)->lpos++ : (b)->lpos = (b)->buf_len; \
+	(b)->lpos++; \
 	if ((b)->backlog < (b)->buf_len) (b)->backlog++; \
     }
 

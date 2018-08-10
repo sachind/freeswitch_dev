@@ -328,7 +328,6 @@ opal
 /libmpg123/
 /openldap-*/
 /openssl-*/
-/openssl-*
 /opus-*/
 /pocketsphinx-*/
 /pthreads-w32-2-7-0-release/
@@ -795,7 +794,6 @@ opal
 /zeromq-*/
 /jpeg-8d/
 /v8-*/
-/v8-*.zip
 
 # build products we should remove
 !/apr-util/xml/expat/conftools/config.guess
@@ -842,19 +840,3 @@ spandsp/configure
 srtp/configure
 tiff-4.0.2/configure
 unimrcp/configure
-zlib-*/
-zlib-*
-libpq-*/
-libpq-*
-lua-*/
-lua-*
-curl-*/
-curl-*
-flite-*/
-flite-*
-pcre-*/
-pcre-*
-libsndfile-*/
-libsndfile-*
-opencv-*/
-opencv-*

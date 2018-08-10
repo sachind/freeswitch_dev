@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  * Juan Jose Comellas <juanjo@comellas.org>
  * Seven Du <dujinfang@gmail.com>
@@ -42,9 +42,6 @@
 #endif
 #include "private/switch_core_pvt.h"
 #define ESCAPE_META '\\'
-#ifdef SWITCH_HAVE_GUMBO
-#include "gumbo.h"
-#endif
 
 struct switch_network_node {
 	ip_t ip;
@@ -110,7 +107,6 @@ typedef struct switch_frame_node_s {
 struct switch_frame_buffer_s {
 	switch_frame_node_t *head;
 	switch_memory_pool_t *pool;
-	switch_queue_t *queue;
 	switch_mutex_t *mutex;
 	uint32_t total;
 };
@@ -124,7 +120,7 @@ static switch_frame_t *find_free_frame(switch_frame_buffer_t *fb, switch_frame_t
 
 	for (np = fb->head; np; np = np->next) {
 		x++;
-
+		
 		if (!np->inuse && ((orig->packet && np->frame->packet) || (!orig->packet && !np->frame->packet))) {
 
 			if (np == fb->head) {
@@ -140,13 +136,13 @@ static switch_frame_t *find_free_frame(switch_frame_buffer_t *fb, switch_frame_t
 			fb->total--;
 			np->prev = np->next = NULL;
 			break;
-		}
+		}		
 	}
-
+	
 	if (!np) {
 		np = switch_core_alloc(fb->pool, sizeof(*np));
 		np->frame = switch_core_alloc(fb->pool, sizeof(*np->frame));
-
+		
 		if (orig->packet) {
 			np->frame->packet = switch_core_alloc(fb->pool, SWITCH_RTP_MAX_BUF_LEN);
 		} else {
@@ -165,8 +161,8 @@ static switch_frame_t *find_free_frame(switch_frame_buffer_t *fb, switch_frame_t
 	np->frame->ssrc = orig->ssrc;
 	np->frame->m = orig->m;
 	np->frame->flags = orig->flags;
-	np->frame->codec = orig->codec;
-	np->frame->pmap = orig->pmap;
+	np->frame->codec = NULL;
+	np->frame->pmap = NULL;
 	np->frame->img = NULL;
 	np->frame->extra_data = np;
 	np->inuse = 1;
@@ -188,7 +184,7 @@ static switch_frame_t *find_free_frame(switch_frame_buffer_t *fb, switch_frame_t
 	if (orig->img && !switch_test_flag(orig, SFF_ENCODED)) {
 		switch_img_copy(orig->img, &np->frame->img);
 	}
-
+	
 	switch_mutex_unlock(fb->mutex);
 
 	return np->frame;
@@ -203,11 +199,11 @@ SWITCH_DECLARE(switch_status_t) switch_frame_buffer_free(switch_frame_buffer_t *
 
 	old_frame = *frameP;
 	*frameP = NULL;
-
+	
 	node = (switch_frame_node_t *) old_frame->extra_data;
 	node->inuse = 0;
 	switch_img_free(&node->frame->img);
-
+	
 	fb->total++;
 
 	if (fb->head) {
@@ -220,7 +216,7 @@ SWITCH_DECLARE(switch_status_t) switch_frame_buffer_free(switch_frame_buffer_t *
 
 	switch_assert(node->next != node);
 	switch_assert(node->prev != node);
-
+	
 
 	switch_mutex_unlock(fb->mutex);
 
@@ -238,30 +234,10 @@ SWITCH_DECLARE(switch_status_t) switch_frame_buffer_dup(switch_frame_buffer_t *f
 	switch_assert(orig->buflen);
 
 	new_frame = find_free_frame(fb, orig);
-
+		
 	*clone = new_frame;
 
 	return SWITCH_STATUS_SUCCESS;
-}
-
-SWITCH_DECLARE(switch_status_t) switch_frame_buffer_push(switch_frame_buffer_t *fb, void *ptr)
-{
-	return switch_queue_push(fb->queue, ptr);
-}
-
-SWITCH_DECLARE(switch_status_t) switch_frame_buffer_trypush(switch_frame_buffer_t *fb, void *ptr)
-{
-	return switch_queue_trypush(fb->queue, ptr);
-}
-
-SWITCH_DECLARE(switch_status_t) switch_frame_buffer_pop(switch_frame_buffer_t *fb, void **ptr)
-{
-	return switch_queue_pop(fb->queue, ptr);
-}
-
-SWITCH_DECLARE(switch_status_t) switch_frame_buffer_trypop(switch_frame_buffer_t *fb, void **ptr)
-{
-	return switch_queue_trypop(fb->queue, ptr);
 }
 
 SWITCH_DECLARE(switch_status_t) switch_frame_buffer_destroy(switch_frame_buffer_t **fbP)
@@ -275,17 +251,14 @@ SWITCH_DECLARE(switch_status_t) switch_frame_buffer_destroy(switch_frame_buffer_
 	return SWITCH_STATUS_SUCCESS;
 }
 
-SWITCH_DECLARE(switch_status_t) switch_frame_buffer_create(switch_frame_buffer_t **fbP, switch_size_t qlen)
+SWITCH_DECLARE(switch_status_t) switch_frame_buffer_create(switch_frame_buffer_t **fbP)
 {
 	switch_frame_buffer_t *fb;
 	switch_memory_pool_t *pool;
 
-	if (!qlen) qlen = 500;
-
 	switch_core_new_memory_pool(&pool);
 	fb = switch_core_alloc(pool, sizeof(*fb));
 	fb->pool = pool;
-	switch_queue_create(&fb->queue, qlen, fb->pool);
 	switch_mutex_init(&fb->mutex, SWITCH_MUTEX_NESTED, pool);
 	*fbP = fb;
 
@@ -321,11 +294,9 @@ SWITCH_DECLARE(switch_status_t) switch_frame_dup(switch_frame_t *orig, switch_fr
 	}
 
 
-	new_frame->codec = orig->codec;
-	new_frame->pmap = orig->pmap;
+	new_frame->codec = NULL;
+	new_frame->pmap = NULL;
 	new_frame->img = NULL;
-
-
 	if (orig->img && !switch_test_flag(orig, SFF_ENCODED)) {
 		switch_img_copy(orig->img, &new_frame->img);
 	}
@@ -379,7 +350,7 @@ SWITCH_DECLARE(int) switch_strcasecmp_any(const char *str, ...)
 			break;
 		}
 	}
-
+	
 	va_end(ap);
 
 	return r;
@@ -408,7 +379,7 @@ SWITCH_DECLARE(char *) switch_find_parameter(const char *str, const char *param,
 			} else {
 				e = ptr + strlen(ptr);
 			}
-
+			
 			mlen = (e - ptr) + 1;
 
 			if (pool) {
@@ -754,7 +725,7 @@ SWITCH_DECLARE(switch_size_t) switch_fd_read_dline(int fd, char **buf, switch_si
 
 		if (total + 2 >= ilen) {
 			if (ilen + DLINE_BLOCK_SIZE > DLINE_MAX_SIZE) {
-				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Single line limit reached!\n");
+				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Single line limit reached!\n");	
 				break;
 			}
 
@@ -800,10 +771,10 @@ SWITCH_DECLARE(switch_size_t) switch_fp_read_dline(FILE *fd, char **buf, switch_
 	//while ((c = fgetc(fd)) != EOF) {
 
 	while (fread(&c, 1, 1, fd) == 1) {
-
+		
 		if (total + 2 >= ilen) {
 			if (ilen + DLINE_BLOCK_SIZE > DLINE_MAX_SIZE) {
-				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Single line limit reached!\n");
+				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_CRIT, "Single line limit reached!\n");	
 				break;
 			}
 
@@ -955,13 +926,12 @@ SWITCH_DECLARE(switch_status_t) switch_b64_encode(unsigned char *in, switch_size
 	return SWITCH_STATUS_SUCCESS;
 }
 
-SWITCH_DECLARE(switch_size_t) switch_b64_decode(const char *in, char *out, switch_size_t olen)
+SWITCH_DECLARE(switch_size_t) switch_b64_decode(char *in, char *out, switch_size_t olen)
 {
 
 	char l64[256];
 	int b = 0, c, l = 0, i;
-	const char *ip;
-	char *op = out;
+	char *ip, *op = out;
 	size_t ol = 0;
 
 	for (i = 0; i < 256; i++) {
@@ -1253,7 +1223,7 @@ SWITCH_DECLARE(switch_bool_t) switch_is_lan_addr(const char *ip)
 			strncmp(ip, "192.168.", 8) &&  /* 192.168.0.0     -   192.168.255.255 (192.168/16 prefix) */
 			strncmp(ip, "127.", 4) &&      /* 127.0.0.0       -   127.255.255.255 (127/8 prefix)      */
 			strncmp(ip, "255.", 4) &&
-			strncmp(ip, "0.", 2) &&
+			strncmp(ip, "0.", 2) &&       
 			strncmp(ip, "1.", 2) &&
 			strncmp(ip, "2.", 2) &&
 			strncmp(ip, "172.16.", 7) &&   /* 172.16.0.0      -   172.31.255.255  (172.16/12 prefix)  */
@@ -1341,7 +1311,7 @@ SWITCH_DECLARE(char *) switch_strip_whitespace(const char *str)
 	while ((*sp == 13 ) || (*sp == 10 ) || (*sp == 9 ) || (*sp == 32) || (*sp == 11) ) {
 		sp++;
 	}
-
+	
 	if (zstr(sp)) {
 		return strdup(SWITCH_BLANK_STRING);
 	}
@@ -1405,12 +1375,12 @@ SWITCH_DECLARE(char *) switch_strip_commas(char *in, char *out, switch_size_t le
 	for (; p && *p; p++) {
 		if ((*p > 47 && *p < 58)) {
 			*q++ = *p;
-
-			if (++x > len) {
-				ret = NULL;
-				break;
-			}
 		} else if (*p != ',') {
+			ret = NULL;
+			break;
+		}
+
+		if (++x > len) {
 			ret = NULL;
 			break;
 		}
@@ -1428,11 +1398,11 @@ SWITCH_DECLARE(char *) switch_strip_nonnumerics(char *in, char *out, switch_size
 	for (; p && *p; p++) {
 		if ((*p > 47 && *p < 58) || *p == '.' || *p == '-' || *p == '+') {
 			*q++ = *p;
+		}
 
-			if (++x > len) {
-				ret = NULL;
-				break;
-			}
+		if (++x > len) {
+			ret = NULL;
+			break;
 		}
 	}
 
@@ -2683,7 +2653,7 @@ static unsigned int separate_string_blank_delim(char *buf, char **array, unsigne
 	for (i = 0; i < count; ++i) {
 		array[i] = cleanup_separated_string(array[i], 0);
 	}
-
+	
 	return count;
 }
 
@@ -2696,7 +2666,7 @@ SWITCH_DECLARE(unsigned int) switch_separate_string(char *buf, char delim, char 
 
 	if (*buf == '^' && *(buf+1) == '^') {
 		char *p = buf + 2;
-
+		
 		if (p && *p && *(p+1)) {
 			buf = p;
 			delim = *buf++;
@@ -2864,7 +2834,7 @@ SWITCH_DECLARE(int) switch_wait_sock(switch_os_socket_t sock, uint32_t ms, switc
 
 	if (sock == SWITCH_SOCK_INVALID) {
 		return SWITCH_SOCK_INVALID;
-	}
+	}	
 
 	pfds[0].fd = sock;
 
@@ -2896,7 +2866,7 @@ SWITCH_DECLARE(int) switch_wait_sock(switch_os_socket_t sock, uint32_t ms, switc
 	if ((flags & SWITCH_POLL_PRI)) {
 		pfds[0].events |= POLLPRI;
 	}
-
+	
 	s = poll(pfds, 1, ms);
 
 	if (s < 0) {
@@ -2944,14 +2914,14 @@ SWITCH_DECLARE(int) switch_wait_socklist(switch_waitlist_t *waitlist, uint32_t l
 	int s = 0, r = 0, i;
 
 	pfds = calloc(len, sizeof(struct pollfd));
-
+	
 	for (i = 0; i < len; i++) {
 		if (waitlist[i].sock == SWITCH_SOCK_INVALID) {
 			break;
 		}
 
 		pfds[i].fd = waitlist[i].sock;
-
+		
 		if ((waitlist[i].events & SWITCH_POLL_READ)) {
 			pfds[i].events |= POLLIN;
 		}
@@ -2980,7 +2950,7 @@ SWITCH_DECLARE(int) switch_wait_socklist(switch_waitlist_t *waitlist, uint32_t l
 			pfds[i].events |= POLLPRI;
 		}
 	}
-
+	
 	s = poll(pfds, len, ms);
 
 	if (s < 0) {
@@ -3060,14 +3030,14 @@ SWITCH_DECLARE(int) switch_wait_sock(switch_os_socket_t sock, uint32_t ms, switc
 	/* Wouldn't you rather know?? */
 	assert(sock <= FD_SETSIZE);
 #endif
-
+	
 	if ((flags & SWITCH_POLL_READ)) {
 
 #ifdef WIN32
 #pragma warning( push )
 #pragma warning( disable : 4127 )
 	FD_SET(sock, rfds);
-#pragma warning( pop )
+#pragma warning( pop ) 
 #else
 	FD_SET(sock, rfds);
 #endif
@@ -3079,7 +3049,7 @@ SWITCH_DECLARE(int) switch_wait_sock(switch_os_socket_t sock, uint32_t ms, switc
 #pragma warning( push )
 #pragma warning( disable : 4127 )
 	FD_SET(sock, wfds);
-#pragma warning( pop )
+#pragma warning( pop ) 
 #else
 	FD_SET(sock, wfds);
 #endif
@@ -3091,7 +3061,7 @@ SWITCH_DECLARE(int) switch_wait_sock(switch_os_socket_t sock, uint32_t ms, switc
 #pragma warning( push )
 #pragma warning( disable : 4127 )
 	FD_SET(sock, efds);
-#pragma warning( pop )
+#pragma warning( pop ) 
 #else
 	FD_SET(sock, efds);
 #endif
@@ -3099,7 +3069,7 @@ SWITCH_DECLARE(int) switch_wait_sock(switch_os_socket_t sock, uint32_t ms, switc
 
 	tv.tv_sec = ms / 1000;
 	tv.tv_usec = (ms % 1000) * ms;
-
+	
 	s = select(sock + 1, (flags & SWITCH_POLL_READ) ? rfds : NULL, (flags & SWITCH_POLL_WRITE) ? wfds : NULL, (flags & SWITCH_POLL_ERROR) ? efds : NULL, &tv);
 
 	if (s < 0) {
@@ -3165,14 +3135,14 @@ SWITCH_DECLARE(int) switch_wait_socklist(switch_waitlist_t *waitlist, uint32_t l
 		assert(waitlist[i].sock <= FD_SETSIZE);
 #endif
 		flags |= waitlist[i].events;
-
+	
 		if ((waitlist[i].events & SWITCH_POLL_READ)) {
 
 #ifdef WIN32
 #pragma warning( push )
 #pragma warning( disable : 4127 )
 			FD_SET(waitlist[i].sock, rfds);
-#pragma warning( pop )
+#pragma warning( pop ) 
 #else
 			FD_SET(waitlist[i].sock, rfds);
 #endif
@@ -3184,7 +3154,7 @@ SWITCH_DECLARE(int) switch_wait_socklist(switch_waitlist_t *waitlist, uint32_t l
 #pragma warning( push )
 #pragma warning( disable : 4127 )
 			FD_SET(waitlist[i].sock, wfds);
-#pragma warning( pop )
+#pragma warning( pop ) 
 #else
 			FD_SET(waitlist[i].sock, wfds);
 #endif
@@ -3196,7 +3166,7 @@ SWITCH_DECLARE(int) switch_wait_socklist(switch_waitlist_t *waitlist, uint32_t l
 #pragma warning( push )
 #pragma warning( disable : 4127 )
 			FD_SET(waitlist[i].sock, efds);
-#pragma warning( pop )
+#pragma warning( pop ) 
 #else
 			FD_SET(waitlist[i].sock, efds);
 #endif
@@ -3205,7 +3175,7 @@ SWITCH_DECLARE(int) switch_wait_socklist(switch_waitlist_t *waitlist, uint32_t l
 
 	tv.tv_sec = ms / 1000;
 	tv.tv_usec = (ms % 1000) * ms;
-
+	
 	s = select(max_fd + 1, (flags & SWITCH_POLL_READ) ? rfds : NULL, (flags & SWITCH_POLL_WRITE) ? wfds : NULL, (flags & SWITCH_POLL_ERROR) ? efds : NULL, &tv);
 
 	if (s < 0) {
@@ -3753,7 +3723,7 @@ SWITCH_DECLARE(const char *) switch_dow_int2str(int val) {
 SWITCH_DECLARE(int) switch_dow_str2int(const char *exp) {
 	int ret = -1;
 	int x;
-
+	
 	for (x = 0; x < switch_arraylen(DOW); x++) {
 		if (!strncasecmp(DOW[x], exp, 3)) {
 			ret = x + 1;
@@ -3777,10 +3747,10 @@ typedef enum {
 	DOW_COMA = ','
 } dow_t;
 
-static inline dow_t _dow_read_token(const char **s)
+static inline dow_t _dow_read_token(const char **s) 
 {
 	int i;
-
+	
 	if (**s == '-') {
 		(*s)++;
 		return DOW_HYPHEN;
@@ -3805,11 +3775,11 @@ SWITCH_DECLARE(switch_bool_t) switch_dow_cmp(const char *exp, int val)
 {
 	dow_t cur, prev = DOW_EOF, range_start = DOW_EOF;
 	const char *p = exp;
-
+		
 	while ((cur = _dow_read_token(&p)) != DOW_EOF) {
 		if (cur == DOW_COMA) {
 			/* Reset state */
-			cur = prev = DOW_EOF;
+			cur = prev = DOW_EOF;	
 		} else if (cur == DOW_HYPHEN) {
 			/* Save the previous token and move to the next one */
 			range_start = prev;
@@ -3827,7 +3797,7 @@ SWITCH_DECLARE(switch_bool_t) switch_dow_cmp(const char *exp, int val)
 				return SWITCH_TRUE;
 			}
 		}
-
+		
 		prev = cur;
 	}
 
@@ -3980,7 +3950,7 @@ SWITCH_DECLARE(char *) switch_format_number(const char *num)
 	}
 
 	len = strlen(p);
-
+	
 	/* region 1, TBD add more....*/
 	if (len == 11 && p[0] == '1') {
 		r = switch_mprintf("%c (%c%c%c) %c%c%c-%c%c%c%c", p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7],p[8],p[9],p[10]);
@@ -4311,102 +4281,6 @@ SWITCH_DECLARE(void) switch_getcputime(switch_cputime *t)
 	t->kernelms = -1;
 #endif
 }
-
-
-#ifdef SWITCH_HAVE_GUMBO
-static void process(GumboNode *node, switch_stream_handle_t *stream)
-{
-	if (node->type == GUMBO_NODE_TEXT) {
-		stream->write_function(stream, "%s", node->v.text.text);
-		return;
-	} else if (node->type == GUMBO_NODE_ELEMENT && node->v.element.tag != GUMBO_TAG_SCRIPT && node->v.element.tag != GUMBO_TAG_STYLE) {
-		GumboVector *children = &node->v.element.children;
-		int i;
-
-		if (node->v.element.tag != GUMBO_TAG_UNKNOWN && node->v.element.tag <= GUMBO_TAG_LAST) {
-			GumboAttribute* attr = NULL;
-			const char *aval = NULL;
-
-			if (node->v.element.tag == GUMBO_TAG_SPAN) {
-				if ((attr = gumbo_get_attribute(&node->v.element.attributes, "class"))) {
-					aval = attr->value;
-				}
-			}
-
-			if (aval && !strcasecmp(aval, "Apple-converted-space")) {
-				const char *txt = ((GumboNode*)children->data[0])->v.text.text;
-				int x, len = 0;
-
-				for (x = 0; txt[x]; x++) {
-					if (txt[x] == ' ') {
-						len++;
-					}
-				}
-
-				for (x = 0; x < len*2; x++) {
-					stream->write_function(stream, "%s", " ");
-				}
-			} else {
-				for (i = 0; i < children->length; ++i) {
-					process((GumboNode*) children->data[i], stream);
-				}
-			}
-
-			if (node->v.element.tag == GUMBO_TAG_P || node->v.element.tag == GUMBO_TAG_BR) {
-				stream->write_function(stream, "%s", "\n");
-			}
-
-		}
-	}
-}
-#endif
-
-SWITCH_DECLARE(char *)switch_html_strip(const char *str)
-{
-	char *p, *html = NULL, *text = NULL;
-	int x = 0, got_ct = 0;
-#ifdef SWITCH_HAVE_GUMBO
-	GumboOutput *output;
-	switch_stream_handle_t stream;
-
-	SWITCH_STANDARD_STREAM(stream);
-#endif
-
-	for(p = (char *)str; p && *p; p++) {
-
-		if (!strncasecmp(p, "Content-Type:", 13)) {
-			got_ct++;
-		}
-
-		if (!got_ct) continue;
-
-		if (*p == '\n') {
-			x++;
-			if (x == 2) {
-				break;
-			}
-		} else if (x && (*p != '\r')) {
-			x = 0;
-		}
-	}
-
-	html = p;
-
-#ifdef SWITCH_HAVE_GUMBO
-	if ((output = gumbo_parse_with_options(&kGumboDefaultOptions, html, strlen(html)))) {
-		process(output->root, &stream);
-		gumbo_destroy_output(&kGumboDefaultOptions, output);
-	}
-
-	text = (char *)stream.data;
-#else
-	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "Support for html parser is not compiled.\n");
-	text = strdup(html);
-#endif
-
-	return text;
-}
-
 
 
 /* For Emacs:

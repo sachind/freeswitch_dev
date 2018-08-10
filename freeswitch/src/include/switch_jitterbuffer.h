@@ -1,4 +1,4 @@
-/*
+/* 
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005-2014, Anthony Minessale II <anthm@freeswitch.org>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *
+ * 
  * Anthony Minessale II <anthm@freeswitch.org>
  *
  * switch_jitterbuffer.h -- Audio/Video Jitter Buffer
@@ -39,8 +39,7 @@ typedef enum {
 
 typedef enum {
 	SJB_VIDEO = 0,
-	SJB_AUDIO,
-	SJB_TEXT
+	SJB_AUDIO
 } switch_jb_type_t;
 
 

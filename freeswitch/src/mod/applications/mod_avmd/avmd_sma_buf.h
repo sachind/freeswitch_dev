@@ -46,7 +46,7 @@ typedef struct {
 
 #define INC_SMA_POS(b) \
     { \
-	((b)->lpos + 1 < 2 * (b)->len) ? ((b)->lpos++) : ((b)->lpos = (b)->len); \
+	(b)->lpos++; \
 	(b)->pos = (b)->lpos % (b)->len; \
     }
 
